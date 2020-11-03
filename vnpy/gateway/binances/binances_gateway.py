@@ -448,7 +448,7 @@ class BinancesRestApi(RestClient):
             "positionSide": positionSide
         }
 
-        if req.offset == Offset.CLOSE and self.contracts['positionSide'] != "BOTH":
+        if req.offset == Offset.CLOSE and self.contracts[req.symbol]['positionSide'] != "BOTH":
             params["reduceOnly"] = True
 
         if self.usdt_base:
