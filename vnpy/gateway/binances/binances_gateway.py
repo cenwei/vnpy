@@ -448,8 +448,8 @@ class BinancesRestApi(RestClient):
             "positionSide": positionSide
         }
 
-        if req.offset == Offset.CLOSE and self.contracts[req.symbol]['positionSide'] != "BOTH":
-            params["reduceOnly"] = True
+        # if req.offset == Offset.CLOSE:
+        #     params["reduceOnly"] = True
 
         if self.usdt_base:
             path = "/fapi/v1/order"
