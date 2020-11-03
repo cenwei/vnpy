@@ -1,7 +1,9 @@
 """"""
 
 import importlib
+import logging
 import os
+import sys
 import traceback
 from collections import defaultdict
 from pathlib import Path
@@ -36,7 +38,8 @@ from vnpy.trader.constant import (
     Offset,
     Status
 )
-from vnpy.trader.utility import load_json, save_json, extract_vt_symbol, round_to
+from vnpy.trader.utility import get_folder_path, load_json, save_json, extract_vt_symbol, round_to
+from vnpy.trader.util_logger import setup_logger
 from vnpy.trader.database import database_manager
 from vnpy.trader.rqdata import rqdata_client
 from vnpy.trader.converter import OffsetConverter
@@ -82,6 +85,8 @@ class CtaEngine(BaseEngine):
 
         self.classes = {}           # class_name: stategy_class
         self.strategies = {}        # strategy_name: strategy
+
+        self.strategy_loggers = {}  # strategy_name: logger
 
         self.symbol_strategy_map = defaultdict(
             list)                   # vt_symbol: strategy list
@@ -905,7 +910,7 @@ class CtaEngine(BaseEngine):
         event = Event(EVENT_CTA_STRATEGY, data)
         self.event_engine.put(event)
 
-    def write_log(self, msg: str, strategy: CtaTemplate = None):
+    def write_log(self, msg: str, strategy: CtaTemplate = None, level: int = logging.INFO):
         """
         Create cta engine log event.
         """
@@ -916,6 +921,22 @@ class CtaEngine(BaseEngine):
         event = Event(type=EVENT_CTA_LOG, data=log)
         self.event_engine.put(event)
 
+        if strategy:
+            strategy_logger = self.strategy_loggers.get(strategy.strategy_name, None)
+            if not strategy_logger:
+                log_path = get_folder_path('log')
+                log_filename = str(log_path.joinpath(str(strategy.strategy_name)))
+                print(u'create logger:{}'.format(log_filename))
+                self.strategy_loggers[strategy.strategy_name] = setup_logger(file_name=log_filename,
+                                                                    name=str(strategy.strategy_name))
+                strategy_logger = self.strategy_loggers.get(strategy.strategy_name)
+            if strategy_logger:
+                strategy_logger.log(level, msg)
+
+        # 如果日志数据异常，错误和告警，输出至sys.stderr
+        if level in [logging.CRITICAL, logging.ERROR, logging.WARNING]:
+            print(f"{strategy.strategy_name}: {msg}" if strategy.strategy_name else msg, file=sys.stderr)
+        
     def send_email(self, msg: str, strategy: CtaTemplate = None):
         """
         Send email to default receiver.

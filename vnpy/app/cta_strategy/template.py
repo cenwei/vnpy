@@ -2,6 +2,7 @@
 from abc import ABC
 from copy import copy
 from typing import Any, Callable
+import logging
 
 from vnpy.trader.constant import Interval, Direction, Offset
 from vnpy.trader.object import BarData, TickData, OrderData, TradeData
@@ -206,11 +207,11 @@ class CtaTemplate(ABC):
         if self.trading:
             self.cta_engine.cancel_all(self)
 
-    def write_log(self, msg: str):
+    def write_log(self, msg: str, level: int = logging.INFO):
         """
         Write a log message.
         """
-        self.cta_engine.write_log(msg, self)
+        self.cta_engine.write_log(msg, self, level)
 
     def get_engine_type(self):
         """

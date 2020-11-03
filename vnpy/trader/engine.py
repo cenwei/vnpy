@@ -108,6 +108,7 @@ class MainEngine:
         """
         Put log event with specific message.
         """
+        print(msg)
         log = LogData(msg=msg, gateway_name=source)
         event = Event(EVENT_LOG, log)
         self.event_engine.put(event)
