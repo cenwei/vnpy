@@ -13,6 +13,7 @@ import requests
 CALLBACK_TYPE = Callable[[dict, "Request"], Any]
 ON_FAILED_TYPE = Callable[[int, "Request"], Any]
 ON_ERROR_TYPE = Callable[[Type, Exception, TracebackType, "Request"], Any]
+requests.adapters.DEFAULT_RETRIES = 15
 
 
 class RequestStatus(Enum):
