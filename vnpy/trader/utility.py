@@ -287,7 +287,7 @@ class BarGenerator:
 
         # Update close price/volume into window bar
         self.window_bar.close_price = bar.close_price
-        self.window_bar.volume += int(bar.volume)
+        self.window_bar.volume += bar.volume
         self.window_bar.open_interest = bar.open_interest
 
         # Check if window bar completed

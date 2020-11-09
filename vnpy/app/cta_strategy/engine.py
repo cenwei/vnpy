@@ -538,6 +538,7 @@ class CtaEngine(BaseEngine):
         """"""
         symbol, exchange = extract_vt_symbol(vt_symbol)
         end = datetime.now(get_localzone())
+        end = datetime(year=end.year, month=end.month, day=end.day, hour=end.hour, minute=0)
         start = end - timedelta(days)
         bars = []
 
