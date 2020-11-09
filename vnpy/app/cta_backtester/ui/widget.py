@@ -540,6 +540,7 @@ class StatisticsMonitor(QtWidgets.QTableWidget):
         "annual_return": "年化收益",
         "max_drawdown": "最大回撤",
         "max_ddpercent": "百分比最大回撤",
+        "max_drawdown_end": "最大回撤时间",
 
         "total_net_pnl": "总盈亏",
         "total_commission": "总手续费",
@@ -558,7 +559,9 @@ class StatisticsMonitor(QtWidgets.QTableWidget):
         "win_ratio": "胜率",
         "sharpe_ratio": "夏普比率",
         "sortino_info": "索提诺比率",
-        "return_drawdown_ratio": "收益回撤比"
+        "return_drawdown_ratio": "收益回撤比",
+        "tail_ratio_info": "尾部比率",
+        "stability_return": "收益稳定率"
     }
 
     def __init__(self):

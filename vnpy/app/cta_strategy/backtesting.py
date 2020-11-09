@@ -378,6 +378,7 @@ class BacktestingEngine:
             max_drawdown = 0
             max_ddpercent = 0
             max_drawdown_duration = 0
+            max_drawdown_end = 0
             total_net_pnl = 0
             daily_net_pnl = 0
             total_commission = 0
@@ -396,6 +397,8 @@ class BacktestingEngine:
             sortino_info = 0
             win_ratio = 0
             return_drawdown_ratio = 0
+            tail_ratio_info = 0
+            stability_return = 0
         else:
             # Calculate balance related time series data
             df["balance"] = df["net_pnl"].cumsum() + self.capital
@@ -523,6 +526,7 @@ class BacktestingEngine:
             "end_balance": end_balance,
             "max_drawdown": max_drawdown,
             "max_ddpercent": max_ddpercent,
+            "max_drawdown_end":max_drawdown_end,
             "max_drawdown_duration": max_drawdown_duration,
             "total_net_pnl": total_net_pnl,
             "daily_net_pnl": daily_net_pnl,
@@ -542,6 +546,8 @@ class BacktestingEngine:
             'sortino_info': sortino_info,
             "win_ratio": win_ratio,
             "return_drawdown_ratio": return_drawdown_ratio,
+            "tail_ratio_info": tail_ratio_info,
+            "stability_return": stability_return
         }
 
         # Filter potential error infinite value
