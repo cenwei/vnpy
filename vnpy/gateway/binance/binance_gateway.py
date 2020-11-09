@@ -732,7 +732,7 @@ class BinanceDataWebsocketApi(WebsocketClient):
         channels = []
         for ws_symbol in self.ticks.keys():
             channels.append(ws_symbol + "@ticker")
-            channels.append(ws_symbol + "@depth20")
+            channels.append(ws_symbol + "@depth5")
 
         url = WEBSOCKET_DATA_HOST + "/".join(channels)
         self.init(url, self.proxy_host, self.proxy_port)
@@ -755,13 +755,13 @@ class BinanceDataWebsocketApi(WebsocketClient):
             tick.datetime = generate_datetime(float(data['E']))
         else:
             bids = data["bids"]
-            for n in range(20):
+            for n in range(5):
                 price, volume = bids[n]
                 tick.__setattr__("bid_price_" + str(n + 1), float(price))
                 tick.__setattr__("bid_volume_" + str(n + 1), float(volume))
 
             asks = data["asks"]
-            for n in range(20):
+            for n in range(5):
                 price, volume = asks[n]
                 tick.__setattr__("ask_price_" + str(n + 1), float(price))
                 tick.__setattr__("ask_volume_" + str(n + 1), float(volume))

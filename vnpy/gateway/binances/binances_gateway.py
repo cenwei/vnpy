@@ -955,7 +955,7 @@ class BinancesDataWebsocketApi(WebsocketClient):
         channels = []
         for ws_symbol in self.ticks.keys():
             channels.append(ws_symbol + "@ticker")
-            channels.append(ws_symbol + "@depth5")
+            channels.append(ws_symbol + "@depth20")
 
         if self.server == "REAL":
             url = F_WEBSOCKET_DATA_HOST + "/".join(channels)
@@ -986,13 +986,13 @@ class BinancesDataWebsocketApi(WebsocketClient):
             tick.datetime = datetime.fromtimestamp(float(data['E']) / 1000)
         else:
             bids = data["b"]
-            for n in range(min(5, len(bids))):
+            for n in range(max(5, len(bids))):
                 price, volume = bids[n]
                 tick.__setattr__("bid_price_" + str(n + 1), float(price))
                 tick.__setattr__("bid_volume_" + str(n + 1), float(volume))
 
             asks = data["a"]
-            for n in range(min(5, len(asks))):
+            for n in range(max(5, len(asks))):
                 price, volume = asks[n]
                 tick.__setattr__("ask_price_" + str(n + 1), float(price))
                 tick.__setattr__("ask_volume_" + str(n + 1), float(volume))
