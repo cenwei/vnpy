@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor
 from copy import copy
 from tzlocal import get_localzone
+from functools import lru_cache
 
 from vnpy.event import Event, EventEngine
 from vnpy.trader.engine import BaseEngine, MainEngine
@@ -38,7 +39,7 @@ from vnpy.trader.constant import (
     Offset,
     Status
 )
-from vnpy.trader.utility import get_folder_path, load_json, save_json, extract_vt_symbol, round_to
+from vnpy.trader.utility import TRADER_DIR, get_folder_path, load_json, save_json, extract_vt_symbol, round_to
 from vnpy.trader.util_logger import setup_logger
 from vnpy.trader.database import database_manager
 from vnpy.trader.rqdata import rqdata_client
@@ -429,6 +430,11 @@ class CtaEngine(BaseEngine):
         self.put_stop_order_event(stop_order)
 
         return [stop_orderid]
+
+    @lru_cache()
+    def get_data_path(self):
+        data_path = os.path.abspath(os.path.join(TRADER_DIR, 'data'))
+        return data_path
 
     def cancel_server_order(self, strategy: CtaTemplate, vt_orderid: str):
         """

@@ -33,6 +33,7 @@ class CtaTemplate(ABC):
         self.inited = False
         self.trading = False
         self.pos = 0
+        self.entrust = 0  # 是否正在委托, 0, 无委托 , 1, 委托方向是LONG， -1, 委托方向是SHORT
 
         # Copy a new variables list here to avoid duplicate insert when multiple
         # strategy instances are created with the same strategy class.
@@ -40,6 +41,7 @@ class CtaTemplate(ABC):
         self.variables.insert(0, "inited")
         self.variables.insert(1, "trading")
         self.variables.insert(2, "pos")
+        self.variables.insert(3, "entrust")
 
         self.update_setting(setting)
 
@@ -186,6 +188,11 @@ class CtaTemplate(ABC):
         Send a new order.
         """
         if self.trading:
+            if direction == Direction.LONG:
+                self.entrust = 1
+            elif direction == Direction.SHORT:
+                self.entrust = -1
+            
             vt_orderids = self.cta_engine.send_order(
                 self, direction, offset, price, volume, stop, lock
             )
@@ -205,6 +212,7 @@ class CtaTemplate(ABC):
         Cancel all orders sent by strategy.
         """
         if self.trading:
+            self.entrust = 0
             self.cta_engine.cancel_all(self)
 
     def write_log(self, msg: str, level: int = logging.INFO):
