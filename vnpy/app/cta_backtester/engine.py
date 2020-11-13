@@ -5,6 +5,7 @@ from datetime import datetime
 from threading import Thread
 from pathlib import Path
 from inspect import getfile
+from vnpy.app.cta_strategy.base import BacktestingMode
 
 from vnpy.event import Event, EventEngine
 from vnpy.trader.engine import BaseEngine, MainEngine
@@ -147,6 +148,12 @@ class BacktesterEngine(BaseEngine):
         engine = self.backtesting_engine
         engine.clear_data()
 
+        if interval == "tick":
+            mode = BacktestingMode.TICK
+            interval = "1m"
+        else:
+            mode = BacktestingMode.BAR
+
         engine.set_parameters(
             vt_symbol=vt_symbol,
             interval=interval,
@@ -157,7 +164,8 @@ class BacktesterEngine(BaseEngine):
             size=size,
             pricetick=pricetick,
             capital=capital,
-            inverse=inverse
+            inverse=inverse,
+            mode=mode
         )
 
         strategy_class = self.classes[class_name]
@@ -165,6 +173,7 @@ class BacktesterEngine(BaseEngine):
             strategy_class,
             setting
         )
+        engine.mode = mode
 
         engine.load_data()
 
@@ -272,6 +281,12 @@ class BacktesterEngine(BaseEngine):
         engine = self.backtesting_engine
         engine.clear_data()
 
+        if interval == "tick":
+            mode = BacktestingMode.TICK
+            interval = "1m"
+        else:
+            mode = BacktestingMode.BAR
+
         engine.set_parameters(
             vt_symbol=vt_symbol,
             interval=interval,
@@ -282,7 +297,8 @@ class BacktesterEngine(BaseEngine):
             size=size,
             pricetick=pricetick,
             capital=capital,
-            inverse=inverse
+            inverse=inverse,
+            mode=mode
         )
 
         strategy_class = self.classes[class_name]

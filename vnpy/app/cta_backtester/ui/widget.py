@@ -24,6 +24,8 @@ from ..engine import (
     OptimizationSetting
 )
 
+from vnpy.app.cta_strategy.backtesting import BacktestingMode
+
 
 class BacktesterManager(QtWidgets.QWidget):
     """"""
@@ -74,8 +76,8 @@ class BacktesterManager(QtWidgets.QWidget):
 
         self.interval_combo = QtWidgets.QComboBox()
         for interval in Interval:
-            if interval != Interval.TICK:
-                self.interval_combo.addItem(interval.value)
+            # if interval != Interval.TICK:
+            self.interval_combo.addItem(interval.value)
 
         end_dt = datetime.now()
         start_dt = end_dt - timedelta(days=3 * 365)
