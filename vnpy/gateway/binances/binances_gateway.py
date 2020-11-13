@@ -770,6 +770,7 @@ class BinancesRestApi(RestClient):
                     break
 
                 buf = []
+                end_timestamp = 0
 
                 for l in data:
                     bar = BarData(
@@ -785,6 +786,7 @@ class BinancesRestApi(RestClient):
                         gateway_name=self.gateway_name
                     )
                     buf.append(bar)
+                    end_timestamp = l[0]
 
                 history.extend(buf)
 
@@ -798,8 +800,18 @@ class BinancesRestApi(RestClient):
                     break
 
                 # Update start time
-                start_dt = bar.datetime + TIMEDELTA_MAP[req.interval]
-                start_time = int(datetime.timestamp(start_dt))
+                bar = buf[-1]
+                # start_dt = bar.datetime + TIMEDELTA_MAP[req.interval]
+                # start_time = int(datetime.timestamp(start_dt))
+                time_delta_stamp = 60
+                if req.interval == Interval.HOUR:
+                    time_delta_stamp = 60 * 60
+                elif req.interval == Interval.DAILY:
+                    time_delta_stamp = 60 * 60 * 24
+                start_time = int(end_timestamp / 1000) + time_delta_stamp
+                if start_time > int(datetime.timestamp(req.end)):
+                    print("开始时间大于结束时间")
+                    break
 
         return history
 
