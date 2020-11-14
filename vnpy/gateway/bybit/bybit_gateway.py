@@ -3,7 +3,7 @@ import hashlib
 import hmac
 import time
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Callable
 from copy import copy
 import pytz
@@ -762,7 +762,7 @@ class BybitPublicWebsocketApi(WebsocketClient):
         self.ticks[req.symbol] = tick
 
         self.subscribe_topic(f"instrument_info.100ms.{req.symbol}", self.on_tick)
-        self.subscribe_topic(f"orderBookL2_25.{req.symbol}", self.on_depth)
+        # self.subscribe_topic(f"orderBookL2_25.{req.symbol}", self.on_depth)
 
     def subscribe_topic(
         self,
@@ -824,7 +824,7 @@ class BybitPublicWebsocketApi(WebsocketClient):
             else:
                 tick.volume = int(data["volume_24h"])
 
-            tick.datetime = generate_datetime(data["updated_at"])
+            tick.datetime = generate_datetime_china(data["updated_at"])
         else:
             update = data["update"][0]
 
@@ -838,7 +838,7 @@ class BybitPublicWebsocketApi(WebsocketClient):
             elif "volume_24h" in update:
                 tick.volume = int(update["volume_24h"])
 
-            tick.datetime = generate_datetime(update["updated_at"])
+            tick.datetime = generate_datetime_china(update["updated_at"])
 
         self.gateway.on_tick(copy(tick))
 
@@ -904,7 +904,7 @@ class BybitPublicWebsocketApi(WebsocketClient):
             setattr(tick, f"ask_volume_{n}", ask_data["size"])
 
         local_dt = datetime.fromtimestamp(timestamp)
-        tick.datetime = local_dt.astimezone(UTC_TZ)
+        tick.datetime = local_dt.astimezone(CHINA_TZ)
         self.gateway.on_tick(copy(tick))
 
 
@@ -1141,4 +1141,18 @@ def generate_datetime(timestamp: str) -> datetime:
     else:
         dt = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%SZ")
     dt = UTC_TZ.localize(dt)
+    return dt
+
+def generate_datetime_china(timestamp: str) -> datetime:
+    """"""
+    if "." in timestamp:
+        part1, part2 = timestamp.split(".")
+        if len(part2) > 7:
+            part2 = part2[:6] + "Z"
+            timestamp = ".".join([part1, part2])
+
+        dt = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%fZ")
+    else:
+        dt = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%SZ")
+    dt = dt + timedelta(hours=8)
     return dt
