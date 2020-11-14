@@ -214,11 +214,18 @@ class CtaEngine(BaseEngine):
         if not strategy:
             return
 
+        contract = self.main_engine.get_contract(strategy.vt_symbol)
+        if not contract:
+            volume = trade.volume
+        else:
+            # Round order price and volume to nearest incremental value
+            volume = round_to(trade.volume, contract.min_volume)
+
         # Update strategy pos before calling on_trade method
         if trade.direction == Direction.LONG:
-            strategy.pos += trade.volume
+            strategy.pos += volume
         else:
-            strategy.pos -= trade.volume
+            strategy.pos -= volume
 
         self.call_strategy_func(strategy, strategy.on_trade, trade)
 
