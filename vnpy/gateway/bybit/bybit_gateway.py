@@ -15,7 +15,7 @@ from vnpy.api.websocket import WebsocketClient
 from vnpy.api.rest import Request, RestClient
 from vnpy.trader.constant import (
     Exchange,
-    Interval,
+    Interval, Offset,
     OrderType,
     Product,
     Status,
@@ -264,15 +264,21 @@ class BybitRestApi(RestClient):
         orderid = self.new_orderid()
         order = req.create_order_data(orderid, self.gateway_name)
 
+        print(req)
+
         data = {
             "symbol": req.symbol,
             "side": DIRECTION_VT2BYBIT[req.direction],
             "qty": req.volume,
             "order_link_id": orderid,
             "time_in_force": "GoodTillCancel",
-            "reduce_only": False,
             "close_on_trigger": False
         }
+
+        if req.offset == Offset.CLOSE:
+            data['reduce_only'] = True
+        else:
+            data['reduce_only'] = False
 
         data["order_type"] = ORDER_TYPE_VT2BYBIT[req.type]
         data["price"] = req.price
@@ -1075,7 +1081,7 @@ class BybitPrivateWebsocketApi(WebsocketClient):
         """"""
         for d in packet["data"]:
             if self.usdt_base:
-                dt = generate_datetime(d["create_time"])
+                dt = generate_datetime(d["update_time"])
             else:
                 dt = generate_datetime(d["create_time"])
 
