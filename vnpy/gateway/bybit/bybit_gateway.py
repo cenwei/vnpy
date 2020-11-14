@@ -267,7 +267,7 @@ class BybitRestApi(RestClient):
         data = {
             "symbol": req.symbol,
             "side": DIRECTION_VT2BYBIT[req.direction],
-            "qty": int(req.volume),
+            "qty": req.volume,
             "order_link_id": orderid,
             "time_in_force": "GoodTillCancel",
             "reduce_only": False,
@@ -755,7 +755,7 @@ class BybitPublicWebsocketApi(WebsocketClient):
         tick = TickData(
             symbol=req.symbol,
             exchange=req.exchange,
-            datetime=datetime.now(UTC_TZ),
+            datetime=datetime.now(CHINA_TZ),
             name=req.symbol,
             gateway_name=self.gateway_name
         )
@@ -1055,6 +1055,8 @@ class BybitPrivateWebsocketApi(WebsocketClient):
             if not orderid:
                 orderid = d["order_id"]
 
+            dt = generate_datetime(d["trade_time"])
+            
             trade = TradeData(
                 symbol=d["symbol"],
                 exchange=Exchange.BYBIT,
@@ -1063,7 +1065,7 @@ class BybitPrivateWebsocketApi(WebsocketClient):
                 direction=DIRECTION_BYBIT2VT[d["side"]],
                 price=float(d["price"]),
                 volume=d["exec_qty"],
-                datetime=generate_datetime(d["trade_time"]),
+                datetime=dt,
                 gateway_name=self.gateway_name,
             )
 
@@ -1073,7 +1075,7 @@ class BybitPrivateWebsocketApi(WebsocketClient):
         """"""
         for d in packet["data"]:
             if self.usdt_base:
-                dt = generate_datetime(d["timestamp"])
+                dt = generate_datetime(d["create_time"])
             else:
                 dt = generate_datetime(d["create_time"])
 
