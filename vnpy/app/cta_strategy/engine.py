@@ -227,6 +227,9 @@ class CtaEngine(BaseEngine):
         else:
             strategy.pos -= volume
 
+        if contract:
+            strategy.pos = round_to(strategy.pos, contract.min_volume)
+
         self.call_strategy_func(strategy, strategy.on_trade, trade)
 
         # Sync strategy variables to data file
