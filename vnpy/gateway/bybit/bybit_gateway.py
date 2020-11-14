@@ -264,8 +264,6 @@ class BybitRestApi(RestClient):
         orderid = self.new_orderid()
         order = req.create_order_data(orderid, self.gateway_name)
 
-        print(req)
-
         data = {
             "symbol": req.symbol,
             "side": DIRECTION_VT2BYBIT[req.direction],
