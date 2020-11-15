@@ -3,6 +3,7 @@ import sys
 import os
 import re
 from datetime import datetime
+import platform
 
 RECORD_FORMAT = "%(levelname)s  [%(asctime)s][%(filename)s:%(lineno)d] %(message)s"
 BACKTEST_FORMAT = "%(levelname)s  %(message)s"
@@ -149,6 +150,15 @@ class MultiprocessHandler(logging. FileHandler):
         except Exception:
             self.handleError(record)
 
+class CustomFormatter(logging.Formatter):
+    def format(self, record):
+        res = super(CustomFormatter, self).format(record)
+
+        res = res.replace("\033[1;32;31m", "")
+        res = res.replace("\033[0m", "")
+
+        return res
+
 def setup_logger(file_name: str,
                  name: str = None,
                  log_level: int = logging.DEBUG,
@@ -176,6 +186,9 @@ def setup_logger(file_name: str,
         if force:
             _logger_filename = file_name
 
+        if platform.system() == "Windows":
+            os.system('')
+
         # 定义日志输出格式
         fmt = logging.Formatter(RECORD_FORMAT if not backtesing else BACKTEST_FORMAT)
         if name is None:
@@ -192,6 +205,7 @@ def setup_logger(file_name: str,
                 logger.addHandler(stream_handler)
 
         # 创建文件日志
+        fmt = CustomFormatter(RECORD_FORMAT if not backtesing else BACKTEST_FORMAT)
         fileHandler = MultiprocessHandler(file_name, encoding='utf8', interval='D')
         fileHandler.setLevel(log_level)
         fileHandler.setFormatter(fmt)

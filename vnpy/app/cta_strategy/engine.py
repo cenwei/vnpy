@@ -934,10 +934,6 @@ class CtaEngine(BaseEngine):
         if strategy:
             msg = f"{strategy.strategy_name}: {msg}"
 
-        log = LogData(msg=msg, gateway_name=APP_NAME)
-        event = Event(type=EVENT_CTA_LOG, data=log)
-        self.event_engine.put(event)
-
         if strategy:
             strategy_logger = self.strategy_loggers.get(strategy.strategy_name, None)
             if not strategy_logger:
@@ -953,6 +949,12 @@ class CtaEngine(BaseEngine):
         # 如果日志数据异常，错误和告警，输出至sys.stderr
         if level in [logging.CRITICAL, logging.ERROR, logging.WARNING]:
             print(f"{strategy.strategy_name}: {msg}" if strategy.strategy_name else msg, file=sys.stderr)
+
+        msg = msg.replace("\033[1;32;31m", "")
+        msg = msg.replace("\033[0m", "")
+        log = LogData(msg=msg, gateway_name=APP_NAME)
+        event = Event(type=EVENT_CTA_LOG, data=log)
+        self.event_engine.put(event)
         
     def send_email(self, msg: str, strategy: CtaTemplate = None):
         """
