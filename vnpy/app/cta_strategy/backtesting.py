@@ -399,6 +399,9 @@ class BacktestingEngine:
             return_drawdown_ratio = 0
             tail_ratio_info = 0
             stability_return = 0
+            win_loss_pnl_ratio = 0
+            pnl_medio = 0
+            duration_medio = 0
         else:
             # Calculate balance related time series data
             df["balance"] = df["net_pnl"].cumsum() + self.capital
@@ -432,6 +435,19 @@ class BacktestingEngine:
             total_net_pnl = df["net_pnl"].sum()
             daily_net_pnl = total_net_pnl / total_days
 
+            win = df[df["net_pnl"] > 0]
+            win_amount = win["net_pnl"].sum()
+            win_pnl_medio = win["net_pnl"].mean()
+            # win_duration_medio = win["duration"].mean().total_seconds()/3600
+            win_count = win["trade_count"].sum()
+            pnl_medio = df["net_pnl"].mean()
+            # duration_medio = df["duration"].mean().total_seconds()/3600
+
+            loss = df[df["net_pnl"] < 0]
+            loss_amount = loss["net_pnl"].sum()
+            loss_pnl_medio = loss["net_pnl"].mean()
+            # loss_duration_medio = loss["duration"].mean().total_seconds()/3600
+
             total_commission = df["commission"].sum()
             daily_commission = total_commission / total_days
 
@@ -442,8 +458,8 @@ class BacktestingEngine:
             daily_turnover = total_turnover / total_days
 
             total_trade_count = df["trade_count"].sum()
-            total_win_trade_count = df['win_trade_count'].sum() * 100
-            win_ratio = total_win_trade_count / total_trade_count
+            win_ratio = (win_count / total_trade_count) * 100
+            win_loss_pnl_ratio = - win_pnl_medio / loss_pnl_medio
             daily_trade_count = total_trade_count / total_days
 
             total_return = (end_balance / self.capital - 1) * 100
@@ -512,6 +528,10 @@ class BacktestingEngine:
             self.output(f"日均收益率：\t{daily_return:,.2f}%")
             self.output(f"收益标准差：\t{return_std:,.2f}%")
             self.output(f"胜率：\t{win_ratio:,.2f}")
+            self.output(f"盈亏比:\t\t{win_loss_pnl_ratio:,.2f}")
+
+            self.output(f"平均每笔盈亏:\t{pnl_medio:,.2f}")
+            # self.output(f"平均持仓小时:\t{duration_medio:,.2f}")
             self.output(f"Sharpe Ratio：\t{sharpe_ratio:,.2f}")
             self.output(f"sortino Ratio：\t{sortino_info:,.3f}")
             self.output(f"收益回撤比：\t{return_drawdown_ratio:,.2f}")
@@ -547,7 +567,9 @@ class BacktestingEngine:
             "win_ratio": win_ratio,
             "return_drawdown_ratio": return_drawdown_ratio,
             "tail_ratio_info": tail_ratio_info,
-            "stability_return": stability_return
+            "stability_return": stability_return,
+            "win_loss_pnl_ratio": win_loss_pnl_ratio,
+            "pnl_medio": pnl_medio
         }
 
         # Filter potential error infinite value
@@ -1182,7 +1204,6 @@ class DailyResult:
 
         self.trades = []
         self.trade_count = 0
-        self.win_trade_count = 0
 
         self.start_pos = 0
         self.end_pos = 0
@@ -1244,8 +1265,6 @@ class DailyResult:
                 turnover = trade.volume * size * trade.price
                 pnl = pos_change * \
                     (self.close_price - trade.price) * size
-                if pnl > 0:
-                    self.win_trade_count += 1
                 self.trading_pnl += pnl
                 self.slippage += trade.volume * size * slippage
             # For crypto currency inverse contract
@@ -1253,8 +1272,6 @@ class DailyResult:
                 turnover = trade.volume * size / trade.price
                 pnl = pos_change * \
                     (1 / trade.price - 1 / self.close_price) * size
-                if pnl > 0:
-                    self.win_trade_count += 1
                 self.trading_pnl += pnl
                 self.slippage += trade.volume * size * slippage / (trade.price ** 2)
 

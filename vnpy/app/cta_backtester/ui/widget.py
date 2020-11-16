@@ -556,9 +556,13 @@ class StatisticsMonitor(QtWidgets.QTableWidget):
         "daily_turnover": "日均成交额",
         "daily_trade_count": "日均成交笔数",
 
+        "pnl_medio": "平均每笔盈亏",
+        "duration_medio": "平均持仓小时",
+
         "daily_return": "日均收益率",
         "return_std": "收益标准差",
         "win_ratio": "胜率",
+        "win_loss_pnl_ratio": "盈亏比",
         "sharpe_ratio": "夏普比率",
         "sortino_info": "索提诺比率",
         "return_drawdown_ratio": "收益回撤比",
@@ -614,8 +618,10 @@ class StatisticsMonitor(QtWidgets.QTableWidget):
         data["daily_turnover"] = f"{data['daily_turnover']:,.2f}"
         data["daily_return"] = f"{data['daily_return']:,.2f}%"
         data["return_std"] = f"{data['return_std']:,.2f}%"
+        data["win_ratio"] = f"{data['win_ratio']:,.2f}%"
         data["sharpe_ratio"] = f"{data['sharpe_ratio']:,.2f}"
         data["return_drawdown_ratio"] = f"{data['return_drawdown_ratio']:,.2f}"
+        data["win_loss_pnl_ratio"] = f"{data['win_loss_pnl_ratio']:,.2f}"
 
         for key, cell in self.cells.items():
             value = data.get(key, "")
