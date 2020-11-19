@@ -3,8 +3,11 @@
 """
 
 from abc import ABC, abstractmethod
+import logging
 from typing import Any, Sequence, Dict, List, Optional, Callable
 from copy import copy
+from vnpy.trader.util_logger import setup_logger
+from vnpy.trader.utility import get_folder_path
 
 from vnpy.event import Event, EventEngine
 from .event import (
@@ -82,6 +85,7 @@ class BaseGateway(ABC):
         """"""
         self.event_engine: EventEngine = event_engine
         self.gateway_name: str = gateway_name
+        self.gateway_loggers = {}  # gateway_name: logger
 
     def on_event(self, type: str, data: Any = None) -> None:
         """
@@ -148,6 +152,15 @@ class BaseGateway(ABC):
         """
         log = LogData(msg=msg, gateway_name=self.gateway_name)
         self.on_log(log)
+        gateway_logger = self.gateway_loggers.get(self.gateway_name, None)
+        if not gateway_logger:
+            log_path = get_folder_path('log')
+            log_filename = str(log_path.joinpath(str(self.gateway_name)))
+            print(u'create logger:{}'.format(log_filename))
+            self.gateway_loggers[self.gateway_name] = setup_logger(file_name=log_filename, name=str(self.gateway_name))
+            gateway_logger = self.gateway_loggers.get(self.gateway_name)
+        if gateway_logger:
+            gateway_logger.log(logging.INFO, msg)
 
     @abstractmethod
     def connect(self, setting: dict) -> None:
