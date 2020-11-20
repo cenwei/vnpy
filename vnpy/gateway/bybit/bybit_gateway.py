@@ -176,6 +176,12 @@ class BybitGateway(BaseGateway):
         """"""
         self.query_position()
 
+    def lcp(self, symbol):
+        """
+        查询用户流动性贡献分
+        """
+        self.rest_api.lcp(symbol)
+
 
 class BybitRestApi(RestClient):
     """
@@ -691,6 +697,24 @@ class BybitRestApi(RestClient):
 
         return history
 
+    def lcp(self, symbol):
+        """
+        查询用户流动性贡献分
+        """
+        path = "/v2/private/account/lcp"
+        params = {
+            "symbol": symbol,
+        }
+        # Get response from server
+        resp = self.request(
+            "GET",
+            path,
+            params=params
+        )
+        data = resp.json()
+        print(data)
+        pass
+
 
 class BybitPublicWebsocketApi(WebsocketClient):
     """"""
@@ -1102,7 +1126,8 @@ class BybitPrivateWebsocketApi(WebsocketClient):
                 status=STATUS_BYBIT2VT[d["order_status"]],
                 datetime=dt,
                 gateway_name=self.gateway_name,
-                offset=offset
+                offset=offset,
+                time=dt.time()
             )
 
             self.gateway.on_order(order)

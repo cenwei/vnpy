@@ -875,6 +875,8 @@ class BinancesTradeWebsocketApi(WebsocketClient):
         if not order_type:
             return
 
+        dt = generate_datetime(packet["E"])
+
         order = OrderData(
             symbol=ord_data["s"],
             exchange=Exchange.BINANCE,
@@ -885,9 +887,10 @@ class BinancesTradeWebsocketApi(WebsocketClient):
             volume=float(ord_data["q"]),
             traded=float(ord_data["z"]),
             status=STATUS_BINANCES2VT[ord_data["X"]],
-            datetime=generate_datetime(packet["E"]),
+            datetime=dt,
             gateway_name=self.gateway_name,
-            offset=OFFSET_BINANCES2VT[ord_data['R']]
+            offset=OFFSET_BINANCES2VT[ord_data['R']],
+            time=dt.time()
         )
 
         self.gateway.on_order(order)

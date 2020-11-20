@@ -5,7 +5,7 @@ import datetime
 import os
 import sys
 import traceback
-from typing import Any, Callable
+from typing import Any, Callable, Dict
 import logging
 from vnpy.component.cta_grid_trade import CtaGrid, CtaGridTrade
 from vnpy.component.cta_position import CtaPosition
@@ -40,6 +40,8 @@ class CtaTemplate(ABC):
         self.trading = False
         self.pos = 0
         self.entrust = 0  # 是否正在委托, 0, 无委托 , 1, 委托方向是LONG， -1, 委托方向是SHORT
+
+        self.active_orders:Dict[str, Dict] = {}
 
         # Copy a new variables list here to avoid duplicate insert when multiple
         # strategy instances are created with the same strategy class.
@@ -229,6 +231,7 @@ class CtaTemplate(ABC):
                 if grid:
                     d.update({'grid': grid})
                     grid.order_ids.append(vt_orderid)
+                self.active_orders.update({vt_orderid: d})
 
             return vt_orderids
         else:
@@ -254,6 +257,12 @@ class CtaTemplate(ABC):
         Write a log message.
         """
         self.cta_engine.write_log(msg, self, level)
+
+    def write_error(self, msg: str):
+        """
+        Write error log message
+        """
+        self.write_log(msg=msg, level=logging.ERROR)
 
     def get_engine_type(self):
         """
@@ -483,6 +492,8 @@ class CryptoFutureTemplate(CtaTemplate):
         self.position:CtaPosition = None  # 仓位组件
         self.gt:CtaGridTrade = None  # 网格交易组件
 
+        self.cur_datetime: datetime = None  # 当前Tick时间
+
         super().__init__(
             cta_engine, strategy_name, vt_symbol, setting
         )
@@ -563,7 +574,9 @@ class CryptoFutureTemplate(CtaTemplate):
         self.display_grids()
 
     def display_grids(self):
-        """更新网格显示信息"""
+        """
+        更新网格显示信息
+        """
         if not self.inited:
             return
         self.account_pos = self.cta_engine.get_position(vt_symbol=self.vt_symbol, direction=Direction.NET)
@@ -610,50 +623,6 @@ class CryptoFutureTemplate(CtaTemplate):
         if len(dn_grids_info) > 0:
             self.write_log(dn_grids_info)
 
-    def on_trade(self, trade: TradeData):
-        """交易更新"""
-        self.write_log(u'{},交易更新:{},当前持仓：{} '
-                       .format(self.cur_datetime,
-                               trade.__dict__,
-                               self.position.pos))
-
-        dist_record = dict()
-        if self.backtesting:
-            dist_record['datetime'] = trade.time
-        else:
-            dist_record['datetime'] = ' '.join([self.cur_datetime.strftime('%Y-%m-%d'), trade.time])
-        dist_record['volume'] = trade.volume
-        dist_record['price'] = trade.price
-        dist_record['margin'] = trade.price * trade.volume * self.cta_engine.get_margin_rate(trade.vt_symbol)
-        dist_record['symbol'] = trade.vt_symbol
-
-        if trade.direction == Direction.LONG and trade.offset == Offset.OPEN:
-            dist_record['operation'] = 'buy'
-            self.position.open_pos(trade.direction, volume=trade.volume)
-            dist_record['long_pos'] = self.position.long_pos
-            dist_record['short_pos'] = self.position.short_pos
-
-        if trade.direction == Direction.SHORT and trade.offset == Offset.OPEN:
-            dist_record['operation'] = 'short'
-            self.position.open_pos(trade.direction, volume=trade.volume)
-            dist_record['long_pos'] = self.position.long_pos
-            dist_record['short_pos'] = self.position.short_pos
-
-        if trade.direction == Direction.LONG and trade.offset != Offset.OPEN:
-            dist_record['operation'] = 'cover'
-            self.position.close_pos(trade.direction, volume=trade.volume)
-            dist_record['long_pos'] = self.position.long_pos
-            dist_record['short_pos'] = self.position.short_pos
-
-        if trade.direction == Direction.SHORT and trade.offset != Offset.OPEN:
-            dist_record['operation'] = 'sell'
-            self.position.close_pos(trade.direction, volume=trade.volume)
-            dist_record['long_pos'] = self.position.long_pos
-            dist_record['short_pos'] = self.position.short_pos
-
-        self.save_dist(dist_record)
-        self.pos = self.position.pos
-
     def save_dist(self, dist_data):
         """
         保存策略逻辑过程记录=》 csv文件按
@@ -680,3 +649,192 @@ class CryptoFutureTemplate(CtaTemplate):
             append_data(file_name=file_name, dict_data=dist_data, field_names=self.dist_fieldnames)
         except Exception as ex:
             self.write_error(u'save_dist 异常:{} {}'.format(str(ex), traceback.format_exc()))
+
+    def on_order(self, order: OrderData):
+        """
+        报单更新
+        """
+        if order.vt_orderid in self.active_orders:
+            if order.volume == order.traded and order.status in [Status.ALLTRADED]:
+                self.on_order_all_traded(order)
+
+                # 更新仓位信息
+                if order.offset == Offset.OPEN:
+                    self.position.open_pos(order.direction, volume=order.volume)
+                
+                if order.offset != Offset.OPEN:
+                    self.position.close_pos(order.direction, volume=order.volume)
+
+            elif order.offset == Offset.OPEN and order.status in [Status.CANCELLED]:
+                # 开仓委托单被撤销
+                self.on_order_open_canceled(order)
+
+            elif order.offset != Offset.OPEN and order.status in [Status.CANCELLED]:
+                # 平仓委托单被撤销
+                self.on_order_close_canceled(order)
+
+            elif order.status == Status.REJECTED:
+                if order.offset == Offset.OPEN:
+                    self.write_error(u'{}委托单开{}被拒，price:{},total:{},traded:{}，status:{}'
+                                        .format(order.vt_symbol, order.direction, order.price, order.volume,
+                                                order.traded, order.status))
+                    self.on_order_open_canceled(order)
+                else:
+                    self.write_error(u'OnOrder({})委托单平{}被拒，price:{},total:{},traded:{}，status:{}'
+                                        .format(order.vt_symbol, order.direction, order.price, order.volume,
+                                                order.traded, order.status))
+                    self.on_order_close_canceled(order)
+            else:
+                self.write_log(u'委托单未完成,total:{},traded:{},tradeStatus:{}'
+                                .format(order.volume, order.traded, order.status))
+        else:
+            self.write_error(u'委托单{}不在策略的未完成订单列表中:{}'.format(order.vt_orderid, self.active_orders))
+    
+    def on_order_all_traded(self, order: OrderData):
+        """
+        订单全部成交
+        :param order:
+        :return:
+        """
+        self.write_log(u'{},委托单:{}全部完成'.format(order.time, order.vt_orderid))
+        order_info = self.active_orders[order.vt_orderid]
+
+        # 通过vt_orderid，找到对应的网格
+        grid = order_info.get('grid', None)
+        if grid is not None:
+            # 移除当前委托单
+            if order.vt_orderid in grid.order_ids:
+                grid.order_ids.remove(order.vt_orderid)
+
+            # 网格的所有委托单已经执行完毕
+            if len(grid.order_ids) == 0:
+                grid.order_status = False
+                grid.traded_volume = 0
+
+                # 平仓完毕（cover， sell）
+                if order.offset != Offset.OPEN:
+                    grid.open_status = False
+                    grid.close_status = True
+                    if grid.volume < order.traded:
+                        self.write_log(f'网格平仓数量{grid.volume}，小于委托单成交数量:{order.volume}，修正为:{order.volume}')
+                        grid.volume = order.traded
+
+                    self.write_log(f'{grid.direction.value}单已平仓完毕,order_price:{order.price}'
+                                   + f',volume:{order.volume}')
+
+                    self.write_log(f'移除网格:{grid.to_json()}')
+                    self.gt.remove_grids_by_ids(direction=grid.direction, ids=[grid.id])
+
+                # 开仓完毕( buy, short)
+                else:
+                    grid.open_status = True
+                    grid.open_time = self.cur_datetime
+                    self.write_log(f'{grid.direction.value}单已开仓完毕,order_price:{order.price}'
+                                   + f',volume:{order.volume}')
+
+                # 网格的所有委托单部分执行完毕
+            else:
+                old_traded_volume = grid.traded_volume
+                grid.traded_volume += order.volume
+                grid.traded_volume = round(grid.traded_volume, 7)
+
+                self.write_log(f'{grid.direction.value}单部分{order.offset}仓，'
+                               + f'网格volume:{grid.volume}, traded_volume:{old_traded_volume}=>{grid.traded_volume}')
+
+                self.write_log(f'剩余委托单号:{grid.order_ids}')
+
+            self.gt.save()
+
+    def on_order_open_canceled(self, order: OrderData):
+        """
+        委托开仓单撤销
+        :param order:
+        :return:
+        """
+        self.write_log(u'委托开仓单撤销:{}'.format(order.__dict__))
+
+        if order.vt_orderid not in self.active_orders:
+            self.write_error(u'{}不在未完成的委托单中{}。'.format(order.vt_orderid, self.active_orders))
+            return
+
+        # 直接更新“未完成委托单”，更新volume,retry次数
+        old_order = self.active_orders[order.vt_orderid]
+        self.write_log(u'{} 委托信息:{}'.format(order.vt_orderid, old_order))
+        old_order['traded'] = order.traded
+
+        grid = old_order.get('grid', None)
+
+        pre_status = old_order.get('status', Status.NOTTRADED)
+        if pre_status == Status.CANCELLED:
+            self.write_log(f'当前状态已经是{Status.CANCELLED}，不做调整处理')
+            return
+
+        old_order.update({'status': Status.CANCELLED})
+        self.write_log(u'委托单状态:{}=>{}'.format(pre_status, old_order.get('status')))
+        if grid:
+            if order.vt_orderid in grid.order_ids:
+                grid.order_ids.remove(order.vt_orderid)
+            if order.traded > 0:
+                pre_traded_volume = grid.traded_volume
+                grid.traded_volume = round(grid.traded_volume + order.traded, 7)
+                self.write_log(f'撤单中部分开仓:{order.traded} + 原已成交:{pre_traded_volume}  => {grid.traded_volume}')
+            if len(grid.order_ids) == 0:
+                grid.order_status = False
+                if grid.traded_volume > 0:
+                    pre_volume = grid.volume
+                    grid.volume = grid.traded_volume
+                    grid.traded_volume = 0
+                    grid.open_status = True
+                    self.write_log(f'开仓完成，grid.volume {pre_volume} => {grid.volume}')
+
+            self.gt.save()
+        self.active_orders.update({order.vt_orderid: old_order})
+
+    def on_order_close_canceled(self, order: OrderData):
+        """
+        委托平仓单撤销
+        """
+        self.write_log(u'委托平仓单撤销:{}'.format(order.__dict__))
+
+        if order.vt_orderid not in self.active_orders:
+            self.write_error(u'{}不在未完成的委托单中:{}。'.format(order.vt_orderid, self.active_orders))
+            return
+
+        # 直接更新“未完成委托单”，更新volume,Retry次数
+        old_order = self.active_orders[order.vt_orderid]
+        self.write_log(u'{} 订单信息:{}'.format(order.vt_orderid, old_order))
+        old_order['traded'] = order.traded
+
+        grid = old_order.get('grid', None)
+        pre_status = old_order.get('status', Status.NOTTRADED)
+        if pre_status == Status.CANCELLED:
+            self.write_log(f'当前状态已经是{Status.CANCELLED}，不做调整处理')
+            return
+
+        old_order.update({'status': Status.CANCELLED})
+        self.write_log(u'委托单状态:{}=>{}'.format(pre_status, old_order.get('status')))
+        if grid:
+            if order.vt_orderid in grid.order_ids:
+                grid.order_ids.remove(order.vt_orderid)
+            if order.traded > 0:
+                pre_traded_volume = grid.traded_volume
+                grid.traded_volume = round(grid.traded_volume + order.traded, 7)
+                self.write_log(f'撤单中部分平仓成交:{order.traded} + 原已成交:{pre_traded_volume}  => {grid.traded_volume}')
+            if len(grid.order_ids) == 0:
+                grid.order_status = False
+                if grid.traded_volume > 0:
+                    pre_volume = grid.volume
+                    grid.volume = round(grid.volume - grid.traded_volume, 7)
+                    grid.traded_volume = 0
+                    if grid.volume <= 0:
+                        grid.volume = 0
+                        grid.open_status = False
+                        self.write_log(f'强制全部平仓完成')
+                    else:
+                        self.write_log(f'平仓委托中，撤单完成，部分成交，减少持仓grid.volume {pre_volume} => {grid.volume}')
+
+            self.gt.save()
+        self.active_orders.update({order.vt_orderid: old_order})
+        pass
+
+

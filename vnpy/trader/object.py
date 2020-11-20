@@ -178,6 +178,7 @@ class OrderData(BaseData):
     traded: float = 0
     status: Status = Status.SUBMITTING
     datetime: datetime = None
+    time: str = ""
     reference: str = ""
 
     def __post_init__(self):
