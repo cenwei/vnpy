@@ -1084,6 +1084,12 @@ class BybitPrivateWebsocketApi(WebsocketClient):
             else:
                 dt = generate_datetime(d["create_time"])
 
+            offset = Offset.NONE
+            if d['create_type'] == "CreateByClosing":
+                offset = Offset.CLOSE
+            elif d['create_type'] == "CreateByUser":
+                offset = Offset.OPEN
+
             order = OrderData(
                 symbol=d["symbol"],
                 exchange=Exchange.BYBIT,
@@ -1095,7 +1101,8 @@ class BybitPrivateWebsocketApi(WebsocketClient):
                 traded=d["cum_exec_qty"],
                 status=STATUS_BYBIT2VT[d["order_status"]],
                 datetime=dt,
-                gateway_name=self.gateway_name
+                gateway_name=self.gateway_name,
+                offset=offset
             )
 
             self.gateway.on_order(order)
