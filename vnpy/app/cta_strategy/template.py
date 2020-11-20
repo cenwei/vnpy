@@ -1,12 +1,18 @@
 """"""
 from abc import ABC
 from copy import copy
+import datetime
+import os
+import sys
+import traceback
 from typing import Any, Callable
 import logging
+from vnpy.component.cta_grid_trade import CtaGrid, CtaGridTrade
+from vnpy.component.cta_position import CtaPosition
 
-from vnpy.trader.constant import Interval, Direction, Offset
+from vnpy.trader.constant import Interval, Direction, Offset, OrderType, Status
 from vnpy.trader.object import BarData, TickData, OrderData, TradeData
-from vnpy.trader.utility import virtual
+from vnpy.trader.utility import virtual, append_data
 
 from .base import StopOrder, EngineType
 
@@ -151,42 +157,54 @@ class CtaTemplate(ABC):
         """
         pass
 
-    def buy(self, price: float, volume: float, stop: bool = False, lock: bool = False):
+    def buy(self, price: float, volume: float, stop: bool = False, lock: bool = False,
+            vt_symbol: str = '', order_type: OrderType = OrderType.LIMIT, order_time: datetime = None, grid: CtaGrid = None):
         """
         Send buy order to open a long position.
         """
-        return self.send_order(Direction.LONG, Offset.OPEN, price, volume, stop, lock)
+        return self.send_order(vt_symbol, Direction.LONG, Offset.OPEN, price, volume, stop, lock, order_type=order_type, order_time=order_time, grid=grid)
 
-    def sell(self, price: float, volume: float, stop: bool = False, lock: bool = False):
+    def sell(self, price: float, volume: float, stop: bool = False, lock: bool = False,
+            vt_symbol: str = '', order_type: OrderType = OrderType.LIMIT, order_time: datetime = None, grid: CtaGrid = None):
         """
         Send sell order to close a long position.
         """
-        return self.send_order(Direction.SHORT, Offset.CLOSE, price, volume, stop, lock)
+        return self.send_order(vt_symbol, Direction.SHORT, Offset.CLOSE, price, volume, stop, lock, order_type=order_type, order_time=order_time, grid=grid)
 
-    def short(self, price: float, volume: float, stop: bool = False, lock: bool = False):
+    def short(self, price: float, volume: float, stop: bool = False, lock: bool = False,
+            vt_symbol: str = '', order_type: OrderType = OrderType.LIMIT, order_time: datetime = None, grid: CtaGrid = None):
         """
         Send short order to open as short position.
         """
-        return self.send_order(Direction.SHORT, Offset.OPEN, price, volume, stop, lock)
+        return self.send_order(vt_symbol, Direction.SHORT, Offset.OPEN, price, volume, stop, lock, order_type=order_type, order_time=order_time, grid=grid)
 
-    def cover(self, price: float, volume: float, stop: bool = False, lock: bool = False):
+    def cover(self, price: float, volume: float, stop: bool = False, lock: bool = False,
+            vt_symbol: str = '', order_type: OrderType = OrderType.LIMIT, order_time: datetime = None, grid: CtaGrid = None):
         """
         Send cover order to close a short position.
         """
-        return self.send_order(Direction.LONG, Offset.CLOSE, price, volume, stop, lock)
+        return self.send_order(vt_symbol, Direction.LONG, Offset.CLOSE, price, volume, stop, lock, order_type=order_type, order_time=order_time, grid=grid)
 
     def send_order(
         self,
+        vt_symbol: str,
         direction: Direction,
         offset: Offset,
         price: float,
         volume: float,
         stop: bool = False,
-        lock: bool = False
+        lock: bool = False,
+        order_type: OrderType = OrderType.LIMIT,
+        order_time: datetime = None,
+        grid: CtaGrid = None
     ):
         """
         Send a new order.
         """
+
+        if vt_symbol == '':
+            vt_symbol = self.vt_symbol
+
         if self.trading:
             if direction == Direction.LONG:
                 self.entrust = 1
@@ -196,6 +214,22 @@ class CtaTemplate(ABC):
             vt_orderids = self.cta_engine.send_order(
                 self, direction, offset, price, volume, stop, lock
             )
+            for vt_orderid in vt_orderids:
+                d = {
+                    'direction': direction,
+                    'offset': offset,
+                    'vt_symbol': vt_symbol,
+                    'price': price,
+                    'volume': volume,
+                    'order_type': order_type,
+                    'traded': 0,
+                    'order_time': order_time,
+                    'status': Status.SUBMITTING
+                }
+                if grid:
+                    d.update({'grid': grid})
+                    grid.order_ids.append(vt_orderid)
+
             return vt_orderids
         else:
             return []
@@ -439,3 +473,210 @@ class TargetPosTemplate(CtaTemplate):
                 else:
                     vt_orderids = self.short(short_price, abs(pos_change))
             self.active_orderids.extend(vt_orderids)
+
+class CryptoFutureTemplate(CtaTemplate):
+    """
+    数字货币合约期货模板
+    """
+
+    def __init__(self, cta_engine, strategy_name, vt_symbol, setting):
+        self.position:CtaPosition = None  # 仓位组件
+        self.gt:CtaGridTrade = None  # 网格交易组件
+
+        super().__init__(
+            cta_engine, strategy_name, vt_symbol, setting
+        )
+
+        # 增加仓位管理模块
+        self.position = CtaPosition(strategy=self)
+        self.position.maxPos = sys.maxsize
+        # 增加网格持久化模块
+        self.gt = CtaGridTrade(strategy=self)
+
+    def init_position(self):
+        """
+        初始化Positin
+        使用网格的持久化，获取开仓状态的多空单，更新
+        :return:
+        """
+        self.write_log(u'init_position(),初始化持仓')
+        changed = False
+        if len(self.gt.up_grids) <= 0:
+            self.position.short_pos = 0
+            # 加载已开仓的空单数据，网格JSON
+            short_grids = self.gt.load(direction=Direction.SHORT, open_status_filter=[True])
+            if len(short_grids) == 0:
+                self.write_log(u'没有持久化的空单数据')
+                self.gt.up_grids = []
+
+            else:
+                self.gt.up_grids = short_grids
+                for sg in short_grids:
+                    if len(sg.order_ids) > 0 or sg.order_status:
+                        self.write_log(f'重置委托状态:{sg.order_status},清除委托单：{sg.order_ids}')
+                        sg.order_status = False
+                        [self.cancel_order(vt_orderid) for vt_orderid in sg.order_ids]
+                        sg.order_ids = []
+                        changed = True
+
+                    self.write_log(u'加载持仓空单[{},价格:{},数量:{}手,开仓时间:{}'
+                                   .format(self.vt_symbol, sg.open_price,
+                                           sg.volume, sg.open_time))
+                    self.position.short_pos = round(self.position.short_pos - sg.volume, 7)
+
+                self.write_log(u'持久化空单，共持仓:{}手'.format(abs(self.position.short_pos)))
+
+        if len(self.gt.dn_grids) <= 0:
+            # 加载已开仓的多数据，网格JSON
+            self.position.long_pos = 0
+            long_grids = self.gt.load(direction=Direction.LONG, open_status_filter=[True])
+            if len(long_grids) == 0:
+                self.write_log(u'没有持久化的多单数据')
+                self.gt.dn_grids = []
+            else:
+                self.gt.dn_grids = long_grids
+                for lg in long_grids:
+
+                    if len(lg.order_ids) > 0 or lg.order_status:
+                        self.write_log(f'重置委托状态:{lg.order_status},清除委托单：{lg.order_ids}')
+                        lg.order_status = False
+                        [self.cancel_order(vt_orderid) for vt_orderid in lg.order_ids]
+                        lg.order_ids = []
+                        changed = True
+
+                    self.write_log(u'加载持仓多单[{},价格:{},数量:{}手, 开仓时间:{}'
+                                   .format(self.vt_symbol, lg.open_price, lg.volume, lg.open_time))
+                    self.position.long_pos = round(self.position.long_pos + lg.volume, 7)
+
+                self.write_log(f'持久化多单，共持仓:{self.position.long_pos}手')
+
+        self.position.pos = round(self.position.long_pos + self.position.short_pos, 7)
+
+        self.write_log(u'{}加载持久化数据完成，多单:{}，空单:{},共:{}手'
+                       .format(self.strategy_name,
+                               self.position.long_pos,
+                               abs(self.position.short_pos),
+                               self.position.pos))
+        self.pos = self.position.pos
+        if changed:
+            self.gt.save()
+        self.display_grids()
+
+    def display_grids(self):
+        """更新网格显示信息"""
+        if not self.inited:
+            return
+        self.account_pos = self.cta_engine.get_position(vt_symbol=self.vt_symbol, direction=Direction.NET)
+        if self.account_pos:
+            self.write_log(
+                f'账号{self.vt_symbol}持仓:{self.account_pos.volume}, 冻结:{self.account_pos.frozen}, 盈亏:{self.account_pos.pnl}')
+
+        up_grids_info = ""
+        for grid in list(self.gt.up_grids):
+            if not grid.open_status and grid.order_status:
+                up_grids_info += f'平空中: [已平:{grid.traded_volume} => 目标:{grid.volume}, 委托时间:{grid.order_time}]\n'
+                if len(grid.order_ids) > 0:
+                    up_grids_info += f'委托单号:{grid.order_ids}'
+                continue
+
+            if grid.open_status and not grid.order_status:
+                up_grids_info += f'持空中: [数量:{grid.volume}, 开仓时间:{grid.open_time}]\n'
+                continue
+
+            if not grid.open_status and grid.order_status:
+                up_grids_info += f'开空中: [已开:{grid.traded_volume} => 目标:{grid.volume}, 委托时间:{grid.order_time}]\n'
+                if len(grid.order_ids) > 0:
+                    up_grids_info += f'委托单号:{grid.order_ids}'
+
+        dn_grids_info = ""
+        for grid in list(self.gt.dn_grids):
+            if not grid.open_status and grid.order_status:
+                dn_grids_info += f'平多中: [已平:{grid.traded_volume} => 目标:{grid.volume}, 委托时间:{grid.order_time}]\n'
+                if len(grid.order_ids) > 0:
+                    dn_grids_info += f'委托单号:{grid.order_ids}'
+                continue
+
+            if grid.open_status and not grid.order_status:
+                dn_grids_info += f'持多中: [数量:{grid.volume}\n, 开仓时间:{grid.open_time}]\n'
+                continue
+
+            if not grid.open_status and grid.order_status:
+                dn_grids_info += f'开多中: [已开:{grid.traded_volume} => 目标:{grid.volume}, 委托时间:{grid.order_time}]\n'
+                if len(grid.order_ids) > 0:
+                    dn_grids_info += f'委托单号:{grid.order_ids}'
+
+        if len(up_grids_info) > 0:
+            self.write_log(up_grids_info)
+        if len(dn_grids_info) > 0:
+            self.write_log(dn_grids_info)
+
+    def on_trade(self, trade: TradeData):
+        """交易更新"""
+        self.write_log(u'{},交易更新:{},当前持仓：{} '
+                       .format(self.cur_datetime,
+                               trade.__dict__,
+                               self.position.pos))
+
+        dist_record = dict()
+        if self.backtesting:
+            dist_record['datetime'] = trade.time
+        else:
+            dist_record['datetime'] = ' '.join([self.cur_datetime.strftime('%Y-%m-%d'), trade.time])
+        dist_record['volume'] = trade.volume
+        dist_record['price'] = trade.price
+        dist_record['margin'] = trade.price * trade.volume * self.cta_engine.get_margin_rate(trade.vt_symbol)
+        dist_record['symbol'] = trade.vt_symbol
+
+        if trade.direction == Direction.LONG and trade.offset == Offset.OPEN:
+            dist_record['operation'] = 'buy'
+            self.position.open_pos(trade.direction, volume=trade.volume)
+            dist_record['long_pos'] = self.position.long_pos
+            dist_record['short_pos'] = self.position.short_pos
+
+        if trade.direction == Direction.SHORT and trade.offset == Offset.OPEN:
+            dist_record['operation'] = 'short'
+            self.position.open_pos(trade.direction, volume=trade.volume)
+            dist_record['long_pos'] = self.position.long_pos
+            dist_record['short_pos'] = self.position.short_pos
+
+        if trade.direction == Direction.LONG and trade.offset != Offset.OPEN:
+            dist_record['operation'] = 'cover'
+            self.position.close_pos(trade.direction, volume=trade.volume)
+            dist_record['long_pos'] = self.position.long_pos
+            dist_record['short_pos'] = self.position.short_pos
+
+        if trade.direction == Direction.SHORT and trade.offset != Offset.OPEN:
+            dist_record['operation'] = 'sell'
+            self.position.close_pos(trade.direction, volume=trade.volume)
+            dist_record['long_pos'] = self.position.long_pos
+            dist_record['short_pos'] = self.position.short_pos
+
+        self.save_dist(dist_record)
+        self.pos = self.position.pos
+
+    def save_dist(self, dist_data):
+        """
+        保存策略逻辑过程记录=》 csv文件按
+        :param dist_data:
+        :return:
+        """
+        if self.backtesting:
+            save_path = self.cta_engine.get_logs_path()
+        else:
+            save_path = self.cta_engine.get_data_path()
+        try:
+            if 'margin' not in dist_data:
+                dist_data.update({'margin': dist_data.get('price', 0) * dist_data.get('volume',
+                                                                                      0) * self.cta_engine.get_margin_rate(
+                    dist_data.get('symbol', self.vt_symbol))})
+            if 'datetime' not in dist_data:
+                dist_data.update({'datetime': self.cur_datetime})
+            if self.position and 'long_pos' not in dist_data:
+                dist_data.update({'long_pos': self.position.long_pos})
+            if self.position and 'short_pos' not in dist_data:
+                dist_data.update({'short_pos': self.position.short_pos})
+
+            file_name = os.path.abspath(os.path.join(save_path, f'{self.strategy_name}_dist.csv'))
+            append_data(file_name=file_name, dict_data=dist_data, field_names=self.dist_fieldnames)
+        except Exception as ex:
+            self.write_error(u'save_dist 异常:{} {}'.format(str(ex), traceback.format_exc()))

@@ -766,7 +766,7 @@ class BybitPublicWebsocketApi(WebsocketClient):
         self.ticks[req.symbol] = tick
 
         self.subscribe_topic(f"instrument_info.100ms.{req.symbol}", self.on_tick)
-        # self.subscribe_topic(f"orderBookL2_25.{req.symbol}", self.on_depth)
+        self.subscribe_topic(f"orderBookL2_25.{req.symbol}", self.on_depth)
 
     def subscribe_topic(
         self,
@@ -895,7 +895,7 @@ class BybitPublicWebsocketApi(WebsocketClient):
         ask_keys = list(asks.keys())
         ask_keys.sort()
 
-        for i in range(5):
+        for i in range(20):
             n = i + 1
 
             bid_price = bid_keys[i]

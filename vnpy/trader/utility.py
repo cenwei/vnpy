@@ -5,6 +5,7 @@ General utility functions.
 import json
 import logging
 import sys
+import csv
 from pathlib import Path
 from typing import Callable, Dict, Tuple, Union, Optional
 from decimal import Decimal
@@ -44,23 +45,6 @@ def _get_trader_dir(temp_name: str) -> Tuple[Path, Path]:
     # 原方法，当前目录必须自建.vntrader子目录，否则在用户得目录下创建
     # 为兼容多账号管理，取消此方法。
     return Path.cwd(), Path.cwd()
-    cwd = Path.cwd()
-    temp_path = cwd.joinpath(temp_name)
-
-    # If .vntrader folder exists in current working directory,
-    # then use it as trader running path.
-    if temp_path.exists():
-        return cwd, temp_path
-
-    # Otherwise use home path of system.
-    home_path = Path.home()
-    temp_path = home_path.joinpath(temp_name)
-
-    # Create .vntrader folder under home path if not exist.
-    if not temp_path.exists():
-        temp_path.mkdir()
-
-    return home_path, temp_path
 
 
 TRADER_DIR, TEMP_DIR = _get_trader_dir(".vntrader")
@@ -166,6 +150,32 @@ def get_digits(value: float) -> int:
         return len(buf)
     else:
         return 0
+
+def append_data(file_name: str, dict_data: dict, field_names: list = [], auto_header=True, encoding='utf8'):
+    """
+    添加数据到csv文件中
+    :param file_name:  csv的文件全路径
+    :param dict_data:  OrderedDict
+    :return:
+    """
+    dict_fieldnames = sorted(list(dict_data.keys())) if len(field_names) == 0 else field_names
+
+    try:
+        if not os.path.exists(file_name):  # or os.path.getsize(file_name) == 0:
+            print(u'create csv file:{}'.format(file_name))
+            with open(file_name, 'a', encoding='utf8', newline='\n') as csvWriteFile:
+                writer = csv.DictWriter(f=csvWriteFile, fieldnames=dict_fieldnames, dialect='excel')
+                if auto_header:
+                    print(u'write csv header:{}'.format(dict_fieldnames))
+                    writer.writeheader()
+                writer.writerow(dict_data)
+        else:
+            with open(file_name, 'a', encoding=encoding, newline='\n') as csvWriteFile:
+                writer = csv.DictWriter(f=csvWriteFile, fieldnames=dict_fieldnames, dialect='excel',
+                                        extrasaction='ignore')
+                writer.writerow(dict_data)
+    except Exception as ex:
+        print(u'append_data exception:{}'.format(str(ex)), file=sys.stderr)
 
 
 class BarGenerator:

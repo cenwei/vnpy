@@ -354,30 +354,6 @@ class CtaEngine(BaseEngine):
 
         return vt_orderids
 
-    def send_limit_order(
-        self,
-        strategy: CtaTemplate,
-        contract: ContractData,
-        direction: Direction,
-        offset: Offset,
-        price: float,
-        volume: float,
-        lock: bool
-    ):
-        """
-        Send a limit order to server.
-        """
-        return self.send_server_order(
-            strategy,
-            contract,
-            direction,
-            offset,
-            price,
-            volume,
-            OrderType.LIMIT,
-            lock
-        )
-
     def send_server_stop_order(
         self,
         strategy: CtaTemplate,
@@ -488,7 +464,8 @@ class CtaEngine(BaseEngine):
         price: float,
         volume: float,
         stop: bool,
-        lock: bool
+        lock: bool,
+        order_type: OrderType = OrderType.LIMIT,
     ):
         """
         """
@@ -507,7 +484,7 @@ class CtaEngine(BaseEngine):
             else:
                 return self.send_local_stop_order(strategy, direction, offset, price, volume, lock)
         else:
-            return self.send_limit_order(strategy, contract, direction, offset, price, volume, lock)
+            return self.send_server_order(strategy, contract, direction, offset, price, volume, type=order_type, lock=lock)
 
     def cancel_order(self, strategy: CtaTemplate, vt_orderid: str):
         """
@@ -542,6 +519,18 @@ class CtaEngine(BaseEngine):
             return contract.pricetick
         else:
             return None
+
+    def get_position(self, vt_symbol: str, direction: Direction = Direction.NET, gateway_name: str = ''):
+        """
+        查询合约在账号的持仓,需要指定方向
+        """
+        contract = self.main_engine.get_contract(vt_symbol)
+        if contract:
+            if contract.gateway_name and not gateway_name:
+                gateway_name = contract.gateway_name
+
+        vt_position_id = f"{gateway_name}.{vt_symbol}.{direction.value}"
+        return self.main_engine.get_position(vt_position_id)
 
     def load_bar(
         self,
@@ -655,13 +644,13 @@ class CtaEngine(BaseEngine):
 
         self.put_strategy_event(strategy)
 
-    def init_strategy(self, strategy_name: str):
+    def init_strategy(self, strategy_name: str, auto_start: bool = False):
         """
         Init a strategy.
         """
-        self.init_executor.submit(self._init_strategy, strategy_name)
+        self.init_executor.submit(self._init_strategy, strategy_name, auto_start=auto_start)
 
-    def _init_strategy(self, strategy_name: str):
+    def _init_strategy(self, strategy_name: str, auto_start: bool = False):
         """
         Init strategies in queue.
         """
@@ -697,6 +686,9 @@ class CtaEngine(BaseEngine):
         strategy.inited = True
         self.put_strategy_event(strategy)
         self.write_log(f"{strategy_name}初始化完成")
+
+        if auto_start:
+            self.start_strategy(strategy_name)
 
     def start_strategy(self, strategy_name: str):
         """
@@ -857,11 +849,11 @@ class CtaEngine(BaseEngine):
         strategy = self.strategies[strategy_name]
         return strategy.get_parameters()
 
-    def init_all_strategies(self):
+    def init_all_strategies(self, auto_start: bool = False):
         """
         """
         for strategy_name in self.strategies.keys():
-            self.init_strategy(strategy_name)
+            self.init_strategy(strategy_name, auto_start=auto_start)
 
     def start_all_strategies(self):
         """
