@@ -916,8 +916,6 @@ class CtaGridTrade(CtaComponent):
             json_data = json.dumps(data, indent=4, ensure_ascii=False)
             f.write(json_data)
 
-        self.write_log(u'GrideTrade保存文件{}完成'.format(grid_json_file))
-
     def load(self, direction, open_status_filter=[]):
         """
         加载本地Json至网格

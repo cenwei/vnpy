@@ -214,7 +214,7 @@ class CtaTemplate(ABC):
                 self.entrust = -1
             
             vt_orderids = self.cta_engine.send_order(
-                self, direction, offset, price, volume, stop, False
+                self, direction, offset, price, volume, stop, False, order_type
             )
             for vt_orderid in vt_orderids:
                 d = {
@@ -853,9 +853,6 @@ class CryptoFutureTemplate(CtaTemplate):
                                  grid=grid,
                                  lock=lock)
         if len(vt_orderids) > 0:
-            self.write_log(u'创建{}事务空单,事务开空价：{}，数量：{}，止盈价:{},止损价:{}'
-                           .format(grid.type, grid.open_price, grid.volume, grid.close_price,
-                                   grid.stop_price))
             self.gt.save()
             return True
         else:
@@ -876,9 +873,6 @@ class CryptoFutureTemplate(CtaTemplate):
                                grid=grid,
                                lock=lock)
         if len(vt_orderids) > 0:
-            self.write_log(u'创建{}事务多单,开仓价：{}，数量：{}，止盈价:{},止损价:{}'
-                           .format(grid.type, grid.open_price, grid.volume, grid.close_price, grid.stop_price))
-
             self.gt.save()
             return True
         else:
