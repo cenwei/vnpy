@@ -354,6 +354,7 @@ class OmsEngine(BaseEngine):
         """Add query function to main engine."""
         self.main_engine.get_tick = self.get_tick
         self.main_engine.get_order = self.get_order
+        self.main_engine.insert_order = self.insert_order
         self.main_engine.get_trade = self.get_trade
         self.main_engine.get_position = self.get_position
         self.main_engine.get_account = self.get_account
@@ -423,6 +424,13 @@ class OmsEngine(BaseEngine):
         Get latest order data by vt_orderid.
         """
         return self.orders.get(vt_orderid, None)
+
+    def insert_order(self, vt_orderid: str, order: OrderData):
+        """
+        将订单重新插入VNPY
+        """
+        self.orders[vt_orderid] = order
+        pass
 
     def get_trade(self, vt_tradeid: str) -> Optional[TradeData]:
         """

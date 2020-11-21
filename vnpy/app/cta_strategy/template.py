@@ -214,7 +214,7 @@ class CtaTemplate(ABC):
                 self.entrust = -1
             
             vt_orderids = self.cta_engine.send_order(
-                self, direction, offset, price, volume, stop, lock
+                self, direction, offset, price, volume, stop, False
             )
             for vt_orderid in vt_orderids:
                 d = {
@@ -230,7 +230,10 @@ class CtaTemplate(ABC):
                 }
                 if grid:
                     d.update({'grid': grid})
-                    grid.order_ids.append(vt_orderid)
+                    if lock:
+                        grid.lock_grid_ids.append(vt_orderid)
+                    else:
+                        grid.order_ids.append(vt_orderid)
                 self.active_orders.update({vt_orderid: d})
 
             return vt_orderids
@@ -523,12 +526,12 @@ class CryptoFutureTemplate(CtaTemplate):
             else:
                 self.gt.up_grids = short_grids
                 for sg in short_grids:
-                    if len(sg.order_ids) > 0 or sg.order_status:
-                        self.write_log(f'重置委托状态:{sg.order_status},清除委托单：{sg.order_ids}')
-                        sg.order_status = False
-                        [self.cancel_order(vt_orderid) for vt_orderid in sg.order_ids]
-                        sg.order_ids = []
-                        changed = True
+                    # if len(sg.order_ids) > 0 or sg.order_status:
+                    #     self.write_log(f'重置委托状态:{sg.order_status},清除委托单：{sg.order_ids}')
+                    #     sg.order_status = False
+                    #     [self.cancel_order(vt_orderid) for vt_orderid in sg.order_ids]
+                    #     sg.order_ids = []
+                    #     changed = True
 
                     self.write_log(u'加载持仓空单[{},价格:{},数量:{}手,开仓时间:{}'
                                    .format(self.vt_symbol, sg.open_price,
@@ -548,12 +551,12 @@ class CryptoFutureTemplate(CtaTemplate):
                 self.gt.dn_grids = long_grids
                 for lg in long_grids:
 
-                    if len(lg.order_ids) > 0 or lg.order_status:
-                        self.write_log(f'重置委托状态:{lg.order_status},清除委托单：{lg.order_ids}')
-                        lg.order_status = False
-                        [self.cancel_order(vt_orderid) for vt_orderid in lg.order_ids]
-                        lg.order_ids = []
-                        changed = True
+                    # if len(lg.order_ids) > 0 or lg.order_status:
+                    #     self.write_log(f'重置委托状态:{lg.order_status},清除委托单：{lg.order_ids}')
+                    #     lg.order_status = False
+                    #     [self.cancel_order(vt_orderid) for vt_orderid in lg.order_ids]
+                    #     lg.order_ids = []
+                    #     changed = True
 
                     self.write_log(u'加载持仓多单[{},价格:{},数量:{}手, 开仓时间:{}'
                                    .format(self.vt_symbol, lg.open_price, lg.volume, lg.open_time))
@@ -700,7 +703,7 @@ class CryptoFutureTemplate(CtaTemplate):
         order_info = self.active_orders[order.vt_orderid]
 
         # 通过vt_orderid，找到对应的网格
-        grid = order_info.get('grid', None)
+        grid:CtaGrid = order_info.get('grid', None)
         if grid is not None:
             # 移除当前委托单
             if order.vt_orderid in grid.order_ids:
@@ -762,7 +765,7 @@ class CryptoFutureTemplate(CtaTemplate):
         self.write_log(u'{} 委托信息:{}'.format(order.vt_orderid, old_order))
         old_order['traded'] = order.traded
 
-        grid = old_order.get('grid', None)
+        grid:CtaGrid = old_order.get('grid', None)
 
         pre_status = old_order.get('status', Status.NOTTRADED)
         if pre_status == Status.CANCELLED:
@@ -805,7 +808,7 @@ class CryptoFutureTemplate(CtaTemplate):
         self.write_log(u'{} 订单信息:{}'.format(order.vt_orderid, old_order))
         old_order['traded'] = order.traded
 
-        grid = old_order.get('grid', None)
+        grid:CtaGrid = old_order.get('grid', None)
         pre_status = old_order.get('status', Status.NOTTRADED)
         if pre_status == Status.CANCELLED:
             self.write_log(f'当前状态已经是{Status.CANCELLED}，不做调整处理')
@@ -836,5 +839,114 @@ class CryptoFutureTemplate(CtaTemplate):
             self.gt.save()
         self.active_orders.update({order.vt_orderid: old_order})
         pass
+
+    def grid_short(self, grid: CtaGrid, short_price, lock: bool = False, order_type: OrderType = OrderType.LIMIT):
+        """
+        事务开空仓
+        :return:
+        """
+        vt_orderids = self.short(vt_symbol=self.vt_symbol,
+                                 price=short_price,
+                                 volume=grid.volume,
+                                 order_type=order_type,
+                                 order_time=self.cur_datetime,
+                                 grid=grid,
+                                 lock=lock)
+        if len(vt_orderids) > 0:
+            self.write_log(u'创建{}事务空单,事务开空价：{}，当前价:{},数量：{}，止盈价:{},止损价:{}'
+                           .format(grid.type, grid.open_price, self.cur_price, grid.volume, grid.close_price,
+                                   grid.stop_price))
+            self.gt.save()
+            return True
+        else:
+            self.write_error(u'创建{}事务空单,委托失败,开仓价：{}，数量：{}，止盈价:{}'
+                             .format(grid.type, grid.open_price, grid.volume, grid.close_price))
+            return False
+
+    def grid_buy(self, grid: CtaGrid, buy_price, lock: bool = False, order_type: OrderType = OrderType.LIMIT):
+        """
+        事务开多仓
+        :return:
+        """
+        vt_orderids = self.buy(vt_symbol=self.vt_symbol,
+                               price=buy_price,
+                               volume=grid.volume,
+                               order_type=order_type,
+                               order_time=self.cur_datetime,
+                               grid=grid,
+                               lock=lock)
+        if len(vt_orderids) > 0:
+            self.write_log(u'创建{}事务多单,开仓价：{}，数量：{}，止盈价:{},止损价:{}'
+                           .format(grid.type, grid.open_price, grid.volume, grid.close_price, grid.stop_price))
+
+            self.gt.save()
+            return True
+        else:
+            self.write_error(u'创建{}事务多单,委托失败，开仓价：{}，数量：{}，止盈价:{}'
+                             .format(grid.type, grid.open_price, grid.volume, grid.close_price))
+            return False
+
+
+    def grid_sell(self, grid: CtaGrid, sell_price, lock: bool = False, order_type: OrderType = OrderType.LIMIT):
+        """
+        事务平多单仓位
+        1.来源自止损止盈平仓
+        :param 平仓网格
+        :return:
+        """
+        self.write_log(u'执行事务平多仓位:{}'.format(grid.to_json()))
+
+        # 发出平多委托
+        if grid.traded_volume > 0:
+            grid.volume -= grid.traded_volume
+            grid.volume = round(grid.volume, 7)
+            grid.traded_volume = 0
+
+        vt_orderids = self.sell(
+            vt_symbol=self.vt_symbol,
+            price=sell_price,
+            volume=grid.volume,
+            order_type=order_type,
+            order_time=self.cur_datetime,
+            grid=grid,
+            lock=lock)
+        if len(vt_orderids) == 0:
+            self.write_error(u'多单平仓委托失败')
+            return False
+        else:
+            self.write_log(u'多单平仓委托成功，编号:{}'.format(vt_orderids))
+
+            return True
+
+    def grid_cover(self, grid: CtaGrid, cover_price, lock: bool = False, order_type: OrderType = OrderType.LIMIT):
+        """
+        事务平空单仓位
+        1.来源自止损止盈平仓
+        :param 平仓网格
+        :return:
+        """
+        self.write_log(u'执行事务平空仓位:{}'.format(grid.to_json()))
+
+        # 发出cover委托
+        if grid.traded_volume > 0:
+            grid.volume -= grid.traded_volume
+            grid.volume = round(grid.volume, 7)
+            grid.traded_volume = 0
+
+        vt_orderids = self.cover(
+            price=cover_price,
+            vt_symbol=self.vt_symbol,
+            volume=grid.volume,
+            order_type=order_type,
+            order_time=self.cur_datetime,
+            grid=grid,
+            lock=lock)
+
+        if len(vt_orderids) == 0:
+            self.write_error(u'空单平仓委托失败')
+            return False
+        else:
+            self.write_log(u'空单平仓委托成功，编号:{}'.format(vt_orderids))
+            return True
 
 

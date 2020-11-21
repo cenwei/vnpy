@@ -385,7 +385,9 @@ class BybitRestApi(RestClient):
     def on_cancel_order(self, data: dict, request: Request) -> None:
         """"""
         if self.check_error("委托撤单", data):
-            return
+            return False
+        else:
+            return True
 
     def on_failed(self, status_code: int, request: Request):
         """

@@ -9,6 +9,7 @@ import traceback
 
 from collections import OrderedDict
 from datetime import datetime
+from vnpy.app.cta_strategy.base import EngineType
 from vnpy.trader.utility import get_folder_path
 from vnpy.component.base import Direction, CtaComponent
 
@@ -443,6 +444,30 @@ class CtaGridTrade(CtaComponent):
                     grids.append(x)
             return grids
 
+    def get_grid_price(self, direction: Direction,
+                  price: float = 0.0):
+        """获取未挂单的网格
+        direction:做多、做空方向: 做多方向时，从dnGrids中获取;  做空方向时，从upGrids中获取
+        price：结束价格，
+        """
+
+        # 状态一致，价格大于最低价格
+        if direction == Direction.LONG:
+
+            grids = False
+            for x in self.dn_grids:
+                if x.open_price == price:
+                    grids = True
+            return grids
+
+        # 状态一致，开仓价格小于最高价格
+        if direction == Direction.SHORT:
+            grids = False
+            for x in self.up_grids:
+                if x.open_price == price:
+                    grids = True
+            return grids
+
     def get_grid_by_id(self, direction: Direction, id: str):
         """寻找指定id的网格"""
         if id == '' or len(id) < 1:
@@ -861,7 +886,7 @@ class CtaGridTrade(CtaComponent):
         :return:
         """""
         # 回测模式不保存
-        if self.strategy and getattr(self.strategy, 'backtesting', False):
+        if self.strategy and self.strategy.get_engine_type() == EngineType.BACKTESTING:
             return
 
         # 更新开仓均价

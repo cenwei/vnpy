@@ -67,9 +67,6 @@ class CtaPosition(CtaComponent):
             self.write_log(f'{self.name} 空仓:{pre_short_pos}->{self.short_pos}')
             self.write_log(f'{self.name} 净:{pre_pos}->{self.pos}')
 
-            # 更新上层策略的pos。该方法不推荐使用
-            self.strategy.pos = self.pos
-
         if direction == Direction.SHORT:  # 平多仓
             if self.long_pos - volume < 0:
                 self.write_error(f'{self.name} 平仓异常，超出仓位。净:{self.pos},多:{self.long_pos},平仓:{volume}')
