@@ -853,8 +853,8 @@ class CryptoFutureTemplate(CtaTemplate):
                                  grid=grid,
                                  lock=lock)
         if len(vt_orderids) > 0:
-            self.write_log(u'创建{}事务空单,事务开空价：{}，当前价:{},数量：{}，止盈价:{},止损价:{}'
-                           .format(grid.type, grid.open_price, self.cur_price, grid.volume, grid.close_price,
+            self.write_log(u'创建{}事务空单,事务开空价：{}，数量：{}，止盈价:{},止损价:{}'
+                           .format(grid.type, grid.open_price, grid.volume, grid.close_price,
                                    grid.stop_price))
             self.gt.save()
             return True
