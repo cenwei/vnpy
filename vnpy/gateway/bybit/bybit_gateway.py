@@ -457,12 +457,13 @@ class BybitRestApi(RestClient):
             return
 
         for d in data["result"]:
-            self.contract_codes.add(d["name"])
+            symbol = d.get("name", d.get("symbol"))
+            self.contract_codes.add(symbol)
 
             contract = ContractData(
-                symbol=d["name"],
+                symbol=symbol,
                 exchange=Exchange.BYBIT,
-                name=d["name"],
+                name=symbol,
                 product=Product.FUTURES,
                 size=1,
                 pricetick=float(d["price_filter"]["tick_size"]),
