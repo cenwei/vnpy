@@ -58,6 +58,7 @@ class CtaGrid(object):
         self.open_time = kwargs.get('open_time', None)  # 开仓时间
         self.order_time = kwargs.get('order_time', None)  # 委托时间
         self.lock_grid_ids = kwargs.get('lock_grid_ids', [])  # 锁单的网格，[gid,gid]
+        self.lock_open_status = kwargs.get('lock_open_status', False) # 锁单开仓状态
         self.lock_order_status = kwargs.get('lock_order_status', False)  # 锁单挂单状态：True,已挂单，False，未挂单
         self.reuse_count = kwargs.get('reuse_count', 0)  # 重用次数（0， 平仓后是否删除）
         self.type = kwargs.get('type', '')  # 网格类型标签
@@ -80,6 +81,7 @@ class CtaGrid(object):
         j['open_status'] = self.open_status  # 开仓状态
         j['close_status'] = self.close_status  # 平仓状态
         j['lock_grid_ids'] = self.lock_grid_ids  # 对锁的网格
+        j['lock_open_status'] = self.lock_open_status # 锁单开仓状态
         j['lock_order_status'] = self.lock_order_status    # 锁单挂单状态
         j['reuse_count'] = self.reuse_count  # 是否重用
         j['type'] = self.type  # 类型
