@@ -472,6 +472,27 @@ class CtaGridTrade(CtaComponent):
                     grids = True
             return grids
 
+    def get_grid_price_grid(self, direction: Direction,
+                  price: float = 0.0):
+        """获取未挂单的网格
+        direction:做多、做空方向: 做多方向时，从dnGrids中获取;  做空方向时，从upGrids中获取
+        price：结束价格，
+        """
+
+        # 状态一致，价格大于最低价格
+        if direction == Direction.LONG:
+            for x in self.dn_grids:
+                x:CtaGrid = x
+                if x.open_price == price:
+                    return x
+
+        # 状态一致，开仓价格小于最高价格
+        if direction == Direction.SHORT:
+            for x in self.up_grids:
+                x:CtaGrid = x
+                if x.open_price == price:
+                    return x
+
     def get_grid_by_id(self, direction: Direction, id: str):
         """寻找指定id的网格"""
         if id == '' or len(id) < 1:
