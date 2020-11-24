@@ -18,7 +18,7 @@ import logging
 from empyrical import (sortino_ratio,omega_ratio,annual_volatility,cagr,conditional_value_at_risk,downside_risk,stability_of_timeseries,tail_ratio,value_at_risk)
 
 from vnpy.trader.constant import (Direction, Offset, Exchange,
-                                  Interval, Status)
+                                  Interval, OrderType, Status)
 from vnpy.trader.database import database_manager
 from vnpy.trader.object import OrderData, TradeData, BarData, TickData
 from vnpy.trader.utility import round_to
@@ -132,6 +132,7 @@ class BacktestingEngine:
         self.days = 0
         self.callback = None
         self.history_data = []
+        self.history_bar = []
 
         self.stop_order_count = 0
         self.stop_orders = {}
@@ -1023,7 +1024,8 @@ class BacktestingEngine:
         price: float,
         volume: float,
         stop: bool,
-        lock: bool
+        lock: bool,
+        order_type: OrderType
     ):
         """"""
         price = round_to(price, self.pricetick)
