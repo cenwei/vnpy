@@ -279,6 +279,10 @@ class CtaTemplate(ABC):
         """
         return self.cta_engine.get_pricetick(self)
 
+    def get_position_detail(self, vt_symbol: str):        
+        """"""        
+        return self.cta_engine.get_position_detail(vt_symbol)
+
     def load_bar(
         self,
         days: int,

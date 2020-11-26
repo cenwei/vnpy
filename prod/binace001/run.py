@@ -4,6 +4,7 @@ import sys
 import os
 from time import sleep
 from logging import INFO
+import signal
 
 # 将repostory的目录i，作为根目录，添加到系统环境中。
 VNPY_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -21,6 +22,7 @@ from vnpy.app.risk_manager import RiskManagerApp
 # from vnpy.app.rpc_service import RpcServiceApp
 from vnpy.trader.utility import load_json, save_json
 from vnpy.app.cta_strategy.base import EVENT_CTA_LOG
+
 
 
 def run_child():
@@ -57,28 +59,31 @@ def run_child():
     cta_engine.init_engine()
     main_engine.write_log("CTA策略初始化完成")
 
-    cta_engine.init_all_strategies()
-    sleep(10)   # Leave enough time to complete strategy initialization
+    cta_engine.init_all_strategies(True)
+    # sleep(10)   # Leave enough time to complete strategy initialization
     main_engine.write_log("CTA策略全部初始化")
     
-    cta_engine.start_all_strategies()
-    main_engine.write_log("CTA策略全部启动")
+    # cta_engine.start_all_strategies()
+    # main_engine.write_log("CTA策略全部启动")
     
-    try:
-        while True:
-            # connect_data = load_json("proxy_connect_status.json")
-            # if not connect_data.get(gateway_name):
-            #     main_engine.connect(binances_setting, gateway_name)
-            #     connect_data.update(gateway_name, True)
-            #     save_json("proxy_connect_status.json", connect_data)
-            #     print("重连接口")
-            sleep(10)
-            
-    except KeyboardInterrupt:
-        main_engine.write_log("CTA策略正在退出")
+    def ctrl_handler(signum, frame):
+        cta_engine.stop_all_strategies()
         cta_engine.close()
-        # rpc_engine.close()
         main_engine.close()
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, ctrl_handler)
+
+    while True:
+        # connect_data = load_json("proxy_connect_status.json")
+        # if not connect_data.get(gateway_name):
+        #     main_engine.connect(binances_setting, gateway_name)
+        #     connect_data.update(gateway_name, True)
+        #     save_json("proxy_connect_status.json", connect_data)
+        #     print("重连接口")
+        sleep(10)
+            
+    
         
 
 
@@ -89,7 +94,6 @@ def run_parent():
     print("启动CTA策略守护父进程")
 
     child_process = None
-
     while True:
 
         # Start child process in trading period

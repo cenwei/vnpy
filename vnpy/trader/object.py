@@ -178,13 +178,34 @@ class OrderData(BaseData):
     traded: float = 0
     status: Status = Status.SUBMITTING
     datetime: datetime = None
+    date: str = ""    
     time: str = ""
+    cancel_time: str = ""
     reference: str = ""
 
     def __post_init__(self):
         """"""
         self.vt_symbol = f"{self.symbol}.{self.exchange.value}"
         self.vt_orderid = f"{self.gateway_name}.{self.orderid}"
+
+        self.untraded = self.volume - self.traded
+
+        # With millisecond    
+        if self.date and "." in self.time:
+            if "-"in self.date:
+                self.datetime = datetime.strptime(" ".join([self.date, self.time]), 
+                "%Y-%m-%d %H:%M:%S.%f")
+            else:
+                self.datetime = datetime.strptime(" ".join([self.date, self.time]),
+                "%Y%m%d %H:%M:%S.%f")   
+        # Without millisecond        
+        elif self.date:            
+            if "-" in self.date:
+                self.datetime = datetime.strptime(" ".join([self.date, self.time]),
+                "%Y-%m-%d %H:%M:%S")
+            else:
+                self.datetime = datetime.strptime(" ".join([self.date, self.time]),
+                "%Y%m%d %H:%M:%S")
 
     def is_active(self) -> bool:
         """

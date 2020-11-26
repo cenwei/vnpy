@@ -13,16 +13,20 @@ from ..setting import SETTINGS
 from ..utility import get_icon_path
 
 
+is_except_running = False
 def excepthook(exctype: type, value: Exception, tb: types.TracebackType) -> None:
     """
     Raise exception under debug mode, otherwise
     show exception detail with QMessageBox.
     """
-    sys.__excepthook__(exctype, value, tb)
+    global is_except_running
+    if not is_except_running:
+        is_except_running = True
+        sys.__excepthook__(exctype, value, tb)
 
-    msg = "".join(traceback.format_exception(exctype, value, tb))
-    dialog = ExceptionDialog(msg)
-    dialog.exec_()
+        msg = "".join(traceback.format_exception(exctype, value, tb))
+        dialog = ExceptionDialog(msg)
+        dialog.exec_()
 
 
 def create_qapp(app_name: str = "VN Trader") -> QtWidgets.QApplication:
@@ -89,6 +93,14 @@ class ExceptionDialog(QtWidgets.QDialog):
         vbox.addLayout(hbox)
 
         self.setLayout(vbox)
+
+    def close(self):
+        """
+        关闭窗口判断
+        """
+        global is_except_running
+        is_except_running = False
+        pass
 
     def _copy_text(self) -> None:
         """"""
