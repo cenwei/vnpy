@@ -75,7 +75,8 @@ ORDERTYPE_VT2BINANCES: Dict[OrderType, Tuple[str, str]] = {
     OrderType.TAKE_PROFIT_MARKET : ("TAKE_PROFIT_MARKET", "GTC"),
     OrderType.TAKE_PROFIT: ("TAKE_PROFIT", "GTC"),
     OrderType.STOP_LOSS: ("STOP_LOSS", "GTC"),
-    OrderType.STOP_LOSS_LIMIT: ("STOP_LOSS_LIMIT", "GTC")
+    OrderType.STOP_LOSS_LIMIT: ("STOP_LOSS_LIMIT", "GTC"),
+    OrderType.STOP: ("STOP", "GTC")
 }
 
 ORDERTYPE_BINANCES2VT: Dict[Tuple[str, str], OrderType] = {v: k for k, v in ORDERTYPE_VT2BINANCES.items()}
@@ -447,6 +448,9 @@ class BinancesRestApi(RestClient):
             "newClientOrderId": orderid,
             "positionSide": positionSide
         }
+
+        if order_type == "STOP":
+            params['stopPrice'] = float(req.price)
 
         # if req.offset == Offset.CLOSE:
         #     params["reduceOnly"] = True

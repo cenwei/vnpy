@@ -723,7 +723,7 @@ class CtaEngine(BaseEngine):
         strategy.trading = False
 
         # Cancel all orders of the strategy
-        # self.cancel_all(strategy)
+        self.cancel_all(strategy)
 
         # Sync strategy variables to data file
         self.sync_strategy_data(strategy)

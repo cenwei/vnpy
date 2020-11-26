@@ -526,12 +526,6 @@ class CryptoFutureTemplate(CtaTemplate):
             else:
                 self.gt.up_grids = short_grids
                 for sg in short_grids:
-                    # if len(sg.order_ids) > 0 or sg.order_status:
-                    #     self.write_log(f'重置委托状态:{sg.order_status},清除委托单：{sg.order_ids}')
-                    #     sg.order_status = False
-                    #     [self.cancel_order(vt_orderid) for vt_orderid in sg.order_ids]
-                    #     sg.order_ids = []
-                    #     changed = True
 
                     self.write_log(u'加载持仓空单[{},价格:{},数量:{}手,开仓时间:{}'
                                    .format(self.vt_symbol, sg.open_price,
@@ -550,13 +544,6 @@ class CryptoFutureTemplate(CtaTemplate):
             else:
                 self.gt.dn_grids = long_grids
                 for lg in long_grids:
-
-                    # if len(lg.order_ids) > 0 or lg.order_status:
-                    #     self.write_log(f'重置委托状态:{lg.order_status},清除委托单：{lg.order_ids}')
-                    #     lg.order_status = False
-                    #     [self.cancel_order(vt_orderid) for vt_orderid in lg.order_ids]
-                    #     lg.order_ids = []
-                    #     changed = True
 
                     self.write_log(u'加载持仓多单[{},价格:{},数量:{}手, 开仓时间:{}'
                                    .format(self.vt_symbol, lg.open_price, lg.volume, lg.open_time))
@@ -725,7 +712,6 @@ class CryptoFutureTemplate(CtaTemplate):
                     self.write_log(f'{grid.direction.value}单已平仓完毕,order_price:{order.price}'
                                    + f',volume:{order.volume}')
 
-                    self.write_log(f'移除网格:{grid.to_json()}')
                     self.gt.remove_grids_by_ids(direction=grid.direction, ids=[grid.id])
 
                 # 开仓完毕( buy, short)
@@ -888,8 +874,6 @@ class CryptoFutureTemplate(CtaTemplate):
         :param 平仓网格
         :return:
         """
-        self.write_log(u'执行事务平多仓位:{}'.format(grid.to_json()))
-
         # 发出平多委托
         if grid.traded_volume > 0:
             grid.volume -= grid.traded_volume
@@ -919,8 +903,6 @@ class CryptoFutureTemplate(CtaTemplate):
         :param 平仓网格
         :return:
         """
-        self.write_log(u'执行事务平空仓位:{}'.format(grid.to_json()))
-
         # 发出cover委托
         if grid.traded_volume > 0:
             grid.volume -= grid.traded_volume
