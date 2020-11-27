@@ -523,6 +523,18 @@ class CtaGridTrade(CtaComponent):
             short_vol = [x.volume - x.traded_volume for x in self.up_grids if x.open_status and x.type in types]
             return sum(short_vol)
 
+    def get_order_volumes(self, direction: Direction, types: list = []):
+        """
+        获取特定类型的网格准备开仓
+        """
+        if direction == Direction.LONG:
+            long_vol = [x.volume - x.traded_volume for x in self.dn_grids if x.order_status and x.type in types]
+            return sum(long_vol)
+
+        if direction == Direction.SHORT:
+            short_vol = [x.volume - x.traded_volume for x in self.up_grids if x.order_status and x.type in types]
+            return sum(short_vol)
+
     def get_first_n_last_grid(self, direction: Direction, type: str = ''):
         """获取最前/后一个的网格"""
         # 做空网格：,first =开仓价最高一个,last= 最低一个
