@@ -491,7 +491,7 @@ class BinancesRestApi(RestClient):
         else:
             path = "/dapi/v1/order"
 
-        resp = self.add_request(
+        resp = self.request(
             method="DELETE",
             path=path,
             params=params,
