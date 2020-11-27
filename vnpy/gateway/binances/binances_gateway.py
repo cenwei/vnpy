@@ -494,12 +494,8 @@ class BinancesRestApi(RestClient):
         resp = self.add_request(
             method="DELETE",
             path=path,
-            callback=self.on_cancel_order,
             params=params,
             data=data,
-            extra=req,
-            on_error=self.on_cancel_order_error,
-            on_failed=self.on_cancel_order_failed
         )
 
         if resp.status_code // 100 != 2:
