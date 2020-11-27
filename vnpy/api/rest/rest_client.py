@@ -287,6 +287,13 @@ class RestClient(object):
                 request.on_error(t, v, tb, request)
             else:
                 self.on_error(t, v, tb, request)
+        except ConnectionResetError:
+            request.status = RequestStatus.error
+            t, v, tb = sys.exc_info()
+            if request.on_error:
+                request.on_error(t, v, tb, request)
+            else:
+                self.on_error(t, v, tb, request)
         except SocketError:
             request.status = RequestStatus.error
             t, v, tb = sys.exc_info()
