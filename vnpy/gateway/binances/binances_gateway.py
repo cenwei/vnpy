@@ -177,7 +177,7 @@ class BinancesGateway(BaseGateway):
 
     def cancel_order(self, req: CancelRequest) -> Request:
         """"""
-        self.rest_api.cancel_order(req)
+        return self.rest_api.cancel_order(req)
 
     def query_account(self) -> None:
         """"""
@@ -474,7 +474,9 @@ class BinancesRestApi(RestClient):
         return order.vt_orderid
 
     def cancel_order(self, req: CancelRequest) -> Request:
-        """"""
+        """
+        取消委托
+        """
         data = {
             "security": Security.SIGNED
         }
@@ -489,16 +491,22 @@ class BinancesRestApi(RestClient):
         else:
             path = "/dapi/v1/order"
 
-        self.add_request(
+        resp = self.add_request(
             method="DELETE",
             path=path,
-            callback=self.on_cancel_order,
             params=params,
             data=data,
             extra=req,
             on_error=self.on_cancel_order_error,
             on_failed=self.on_cancel_order_failed
         )
+
+        if resp.status_code // 100 != 2:
+            msg = f"取消委托失败，状态码：{resp.status_code}，信息：{resp.text}"
+            self.gateway.write_log(msg)
+            return False
+        else:
+            return True
 
     def on_cancel_order_error(
         self, exception_type: type, exception_value: Exception, tb, request: Request
@@ -705,7 +713,8 @@ class BinancesRestApi(RestClient):
             self.on_error(exception_type, exception_value, tb, request)
 
     def on_cancel_order(self, data: dict, request: Request) -> None:
-        """"""
+        """
+        """
         pass
 
     def on_start_user_stream(self, data: dict, request: Request) -> None:

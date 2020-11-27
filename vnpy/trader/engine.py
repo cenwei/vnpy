@@ -190,7 +190,7 @@ class MainEngine:
         """
         gateway = self.get_gateway(gateway_name)
         if gateway:
-            gateway.cancel_order(req)
+            return gateway.cancel_order(req)
 
     def send_orders(self, reqs: Sequence[OrderRequest], gateway_name: str) -> List[str]:
         """
