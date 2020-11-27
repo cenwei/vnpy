@@ -100,7 +100,7 @@ class ExceptionDialog(QtWidgets.QDialog):
         """
         global is_except_running
         is_except_running = False
-        pass
+        super().close()
 
     def _copy_text(self) -> None:
         """"""

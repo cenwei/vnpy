@@ -279,6 +279,13 @@ class RestClient(object):
                     request.on_failed(status_code, request)
                 else:
                     self.on_failed(status_code, request)
+        except requests.exceptions.ConnectionError:
+            request.status = RequestStatus.error
+            t, v, tb = sys.exc_info()
+            if request.on_error:
+                request.on_error(t, v, tb, request)
+            else:
+                self.on_error(t, v, tb, request)
         except Exception:
             request.status = RequestStatus.error
             t, v, tb = sys.exc_info()
