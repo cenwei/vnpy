@@ -517,7 +517,7 @@ class BinancesRestApi(RestClient):
         Callback when cancelling order failed on server.
         """
         # Record exception if not ConnectionError
-        if not issubclass(exception_type, ConnectionError):
+        if not issubclass(exception_type, ConnectionError) or not issubclass(exception_type, ConnectionResetError):
             self.on_error(exception_type, exception_value, tb, request)
 
     def start_user_stream(self) -> Request:
