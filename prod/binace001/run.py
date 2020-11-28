@@ -70,6 +70,7 @@ def run_child():
         cta_engine.stop_all_strategies()
         cta_engine.close()
         main_engine.close()
+        sleep(5)
         sys.exit(0)
 
     signal.signal(signal.SIGINT, ctrl_handler)
@@ -94,16 +95,19 @@ def run_parent():
     print("启动CTA策略守护父进程")
 
     child_process = None
-    while True:
+    try:
+        while True:
 
-        # Start child process in trading period
-        if child_process is None:
-            print("启动子进程")
-            child_process = multiprocessing.Process(target=run_child)
-            child_process.start()
-            print("子进程启动成功")
+            # Start child process in trading period
+            if child_process is None:
+                print("启动子进程")
+                child_process = multiprocessing.Process(target=run_child)
+                child_process.start()
+                print("子进程启动成功")
 
-        sleep(5)
+            sleep(5)
+    except KeyboardInterrupt:
+        print('')
 
 
 if __name__ == "__main__":

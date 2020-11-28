@@ -176,6 +176,8 @@ class OrderData(BaseData):
     price: float = 0
     volume: float = 0
     traded: float = 0
+    fee: float = 0
+    netpnl: float = 0
     status: Status = Status.SUBMITTING
     datetime: datetime = None
     date: str = ""    

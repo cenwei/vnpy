@@ -340,6 +340,7 @@ class BinancesRestApi(RestClient):
             "GET",
             path,
             callback=self.on_query_time,
+            on_error=self.on_default_error,
             data=data
         )
 
@@ -356,6 +357,7 @@ class BinancesRestApi(RestClient):
             method="GET",
             path=path,
             callback=self.on_query_account,
+            on_error=self.on_default_error,
             data=data
         )
 
@@ -372,6 +374,7 @@ class BinancesRestApi(RestClient):
             method="GET",
             path=path,
             callback=self.on_query_position,
+            on_error=self.on_default_error,
             data=data
         )
 
@@ -388,6 +391,7 @@ class BinancesRestApi(RestClient):
             method="GET",
             path=path,
             callback=self.on_query_order,
+            on_error=self.on_default_error,
             data=data
         )
 
@@ -406,6 +410,7 @@ class BinancesRestApi(RestClient):
             method="GET",
             path=path,
             callback=self.on_query_contract,
+            on_error=self.on_default_error,
             data=data
         )
 
@@ -505,7 +510,7 @@ class BinancesRestApi(RestClient):
         else:
             return True
 
-    def on_cancel_order_error(
+    def on_default_error(
         self, exception_type: type, exception_value: Exception, tb, request: Request
     ):
         """
@@ -514,13 +519,6 @@ class BinancesRestApi(RestClient):
         # Record exception if not ConnectionError
         if not issubclass(exception_type, ConnectionError):
             self.on_error(exception_type, exception_value, tb, request)
-
-    def on_cancel_order_failed(self, status_code: str, request: Request):
-        """
-        Callback when canceling order failed on server.
-        """
-        msg = f"撤单失败，状态码：{status_code}，信息：{request.response.text}"
-        self.gateway.write_log(msg)
 
     def start_user_stream(self) -> Request:
         """"""
@@ -537,6 +535,7 @@ class BinancesRestApi(RestClient):
             method="POST",
             path=path,
             callback=self.on_start_user_stream,
+            on_error=self.on_default_error,
             data=data
         )
 
@@ -563,6 +562,7 @@ class BinancesRestApi(RestClient):
             method="PUT",
             path=path,
             callback=self.on_keep_user_stream,
+            on_error=self.on_default_error,
             params=params,
             data=data
         )
@@ -667,9 +667,9 @@ class BinancesRestApi(RestClient):
                 exchange=Exchange.BINANCE,
                 name=name,
                 pricetick=pricetick,
-                size=1,
+                size=symbol_size,
                 min_volume=min_volume,
-                margin_rate=symbol_size,
+                margin_rate=1,
                 product=Product.FUTURES,
                 history_data=True,
                 gateway_name=self.gateway_name,
@@ -708,11 +708,6 @@ class BinancesRestApi(RestClient):
         # Record exception if not ConnectionError
         if not issubclass(exception_type, ConnectionError):
             self.on_error(exception_type, exception_value, tb, request)
-
-    def on_cancel_order(self, data: dict, request: Request) -> None:
-        """
-        """
-        pass
 
     def on_start_user_stream(self, data: dict, request: Request) -> None:
         """"""
@@ -902,6 +897,10 @@ class BinancesTradeWebsocketApi(WebsocketClient):
             offset=OFFSET_BINANCES2VT[ord_data['R']],
             time=dt.time()
         )
+
+        if "n" in ord_data.keys():
+            order.fee = float(ord_data['n'])
+            order.netpnl = float(ord_data['rp'])
 
         self.gateway.on_order(order)
 

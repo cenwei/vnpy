@@ -3,16 +3,19 @@ from abc import ABC
 from copy import copy
 import datetime
 import os
+from os import path
 import sys
 import traceback
 from typing import Any, Callable, Dict
 import logging
+from openpyxl import load_workbook
+from openpyxl.workbook.workbook import Workbook
 from vnpy.component.cta_grid_trade import CtaGrid, CtaGridTrade
 from vnpy.component.cta_position import CtaPosition
 
 from vnpy.trader.constant import Interval, Direction, Offset, OrderType, Status
 from vnpy.trader.object import BarData, TickData, OrderData, TradeData
-from vnpy.trader.utility import virtual, append_data
+from vnpy.trader.utility import get_folder_path, virtual, append_data
 
 from .base import StopOrder, EngineType
 
@@ -279,6 +282,18 @@ class CtaTemplate(ABC):
         """
         return self.cta_engine.get_pricetick(self)
 
+    def get_size(self):
+        """
+        返回杠杆倍数.
+        """
+        return self.cta_engine.get_size(self)
+
+    def get_margin_rate(self):
+        """
+        返回保证金比率.
+        """
+        return self.cta_engine.get_margin_rate(self)
+
     def get_position_detail(self, vt_symbol: str):        
         """"""        
         return self.cta_engine.get_position_detail(vt_symbol)
@@ -494,6 +509,7 @@ class CryptoFutureTemplate(CtaTemplate):
     """
     数字货币合约期货模板
     """
+    size = 1.0
 
     def __init__(self, cta_engine, strategy_name, vt_symbol, setting):
         self.position:CtaPosition = None  # 仓位组件
@@ -510,6 +526,8 @@ class CryptoFutureTemplate(CtaTemplate):
         self.position.maxPos = sys.maxsize
         # 增加网格持久化模块
         self.gt = CtaGridTrade(strategy=self)
+
+        self.size = self.get_size()
 
     def init_position(self):
         """
@@ -705,10 +723,20 @@ class CryptoFutureTemplate(CtaTemplate):
                 grid.order_status = False
                 grid.traded_volume = 0
 
-                # 平仓完毕（cover， sell）
-                if order.offset != Offset.OPEN:
+                if order.offset == Offset.OPEN:
+                    # 开仓完毕( buy, short)
+                    grid.open_status = True
+                    grid.open_time = self.cur_datetime
+                    grid.open_fee = order.fee
+                    self.write_log(f'{grid.direction.value}单已开仓完毕,order_price:{order.price}'
+                                   + f',volume:{order.volume}')
+                else:
+                    # 平仓完毕（cover， sell）
                     grid.open_status = False
                     grid.close_status = True
+                    grid.close_fee = order.fee
+                    self.save_trade(order, grid)
+
                     if grid.volume < order.traded:
                         self.write_log(f'网格平仓数量{grid.volume}，小于委托单成交数量:{order.volume}，修正为:{order.volume}')
                         grid.volume = order.traded
@@ -718,18 +746,13 @@ class CryptoFutureTemplate(CtaTemplate):
 
                     self.gt.remove_grids_by_ids(direction=grid.direction, ids=[grid.id])
 
-                # 开仓完毕( buy, short)
-                else:
-                    grid.open_status = True
-                    grid.open_time = self.cur_datetime
-                    self.write_log(f'{grid.direction.value}单已开仓完毕,order_price:{order.price}'
-                                   + f',volume:{order.volume}')
-
                 # 网格的所有委托单部分执行完毕
             else:
                 old_traded_volume = grid.traded_volume
                 grid.traded_volume += order.volume
                 grid.traded_volume = round(grid.traded_volume, 7)
+                grid.close_fee = order.fee
+                self.save_trade(order, grid)
 
                 self.write_log(f'{grid.direction.value}单部分{order.offset}仓，'
                                + f'网格volume:{grid.volume}, traded_volume:{old_traded_volume}=>{grid.traded_volume}')
@@ -928,5 +951,49 @@ class CryptoFutureTemplate(CtaTemplate):
         else:
             self.write_log(u'空单平仓委托成功，编号:{}'.format(vt_orderids))
             return True
+
+    def save_trade(self, order: OrderData, grid: CtaGrid):
+        """
+        将交易费用保存于excel
+        """
+        if self.get_engine_type() == EngineType.BACKTESTING:
+            return
+
+        trade_save_path = get_folder_path('data')
+        xlsx_name = f"{self.strategy_name}_trade.xlsx"
+        xlsx_file = str(trade_save_path.joinpath(xlsx_name))
+
+        if os.path.exists(xlsx_file):
+            workbook = load_workbook(xlsx_file)
+            my_sheet = workbook.get_sheet_by_name("Mysheet")
+            row = my_sheet.max_row
+            row += 1
+        else:
+            workbook = Workbook()
+            my_sheet = workbook.create_sheet("Mysheet", index=0)
+            
+            row = 1
+            head = ['品种', '开仓时间', '平仓时间', '方向', '数量', '开仓价格', '平仓价格', '开仓手续费', '平仓手续费', '平仓收益' , '净收入']
+            for i, item in enumerate(head):
+                my_sheet.cell(row, i + 1, item)
+            my_sheet.column_dimensions["A"].width = 20
+            my_sheet.column_dimensions["B"].width = 20
+            my_sheet.column_dimensions["C"].width = 20
+            row += 1
+
+        my_sheet.cell(row, 1, grid.vt_symbol)
+        my_sheet.cell(row, 2, grid.open_time)
+        my_sheet.cell(row, 3, order.datetime)
+        my_sheet.cell(row, 4, grid.direction.value if isinstance(grid.direction, Direction) else '')
+        my_sheet.cell(row, 5, grid.volume)
+        my_sheet.cell(row, 6, grid.open_price)
+        my_sheet.cell(row, 7, order.price)
+        my_sheet.cell(row, 8, grid.open_fee)
+        my_sheet.cell(row, 9, grid.close_fee)
+        
+        my_sheet.cell(row, 10, order.netpnl)
+        my_sheet.cell(row, 11, order.netpnl - grid.open_fee - grid.close_fee)
+        
+        workbook.save(xlsx_file)
 
 

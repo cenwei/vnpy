@@ -520,6 +520,28 @@ class CtaEngine(BaseEngine):
         else:
             return None
 
+    def get_margin_rate(self, strategy: CtaTemplate):
+        """
+        返回保证金比率.
+        """
+        contract = self.main_engine.get_contract(strategy.vt_symbol)
+
+        if contract:
+            return contract.margin_rate
+        else:
+            return None
+
+    def get_size(self, strategy: CtaTemplate):
+        """
+        返回杠杆倍数.
+        """
+        contract = self.main_engine.get_contract(strategy.vt_symbol)
+
+        if contract:
+            return contract.size
+        else:
+            return None
+
     def get_position(self, vt_symbol: str, direction: Direction = Direction.NET, gateway_name: str = ''):
         """
         查询合约在账号的持仓,需要指定方向
