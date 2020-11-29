@@ -65,6 +65,11 @@ class CtaGrid(object):
         self.snapshot = kwargs.get('snapshot', {})  # 切片数据，如记录开仓点时的某些状态数据
         self.open_fee = kwargs.get('open_fee', 0.0) # 开仓手续费
         self.close_fee = kwargs.get('close_fee', 0.0)  # 平仓手续费
+        self.open_price_list = kwargs.get('open_price_list', [])
+        self.open_volume_list = kwargs.get('open_volume_list', [])
+        self.close_price_list = kwargs.get('close_price_list', [])
+        self.close_volume_list = kwargs.get('close_volume_list', [])
+        self.netpnl = kwargs.get('netpnl', 0) # 平仓收益
 
     def to_json(self):
         """输出JSON"""
@@ -90,6 +95,11 @@ class CtaGrid(object):
         j['snapshot'] = self.snapshot  # 切片数据
         j['open_fee'] = self.open_fee  # 开仓手续费
         j['close_fee'] = self.close_fee # 平仓手续费
+        j['open_price_list'] = self.open_price_list
+        j['open_volume_list'] = self.open_volume_list
+        j['close_price_list'] = self.close_price_list
+        j['close_volume_list'] = self.close_volume_list
+        j['netpnl'] = self.netpnl   # 平仓收益
 
         # datetime => string
         j['open_time'] = self.open_time.strftime('%Y-%m-%d %H:%M:%S') if isinstance(self.open_time, datetime) else self.open_time

@@ -973,7 +973,7 @@ class CryptoFutureTemplate(CtaTemplate):
             my_sheet = workbook.create_sheet("Mysheet", index=0)
             
             row = 1
-            head = ['品种', '开仓时间', '平仓时间', '方向', '数量', '开仓价格', '平仓价格', '开仓手续费', '平仓手续费', '平仓收益' , '净收入']
+            head = ['品种', '开仓时间', '平仓时间', '方向', '数量', '目标开仓价格', '目标平仓价格', '实际开仓价格', '实际平仓价格', '开仓手续费', '平仓手续费', '平仓收益' , '净收入']
             for i, item in enumerate(head):
                 my_sheet.cell(row, i + 1, item)
             my_sheet.column_dimensions["A"].width = 20
