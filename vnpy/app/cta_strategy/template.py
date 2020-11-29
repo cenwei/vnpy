@@ -15,7 +15,7 @@ from vnpy.component.cta_position import CtaPosition
 
 from vnpy.trader.constant import Interval, Direction, Offset, OrderType, Status
 from vnpy.trader.object import BarData, TickData, OrderData, TradeData
-from vnpy.trader.utility import get_folder_path, virtual, append_data
+from vnpy.trader.utility import get_folder_path, round_to, virtual, append_data
 
 from .base import StopOrder, EngineType
 
@@ -728,6 +728,10 @@ class CryptoFutureTemplate(CtaTemplate):
                     grid.open_status = True
                     grid.open_time = self.cur_datetime
                     grid.open_fee = order.fee
+
+                    grid.open_price_list.append(order.price)
+                    grid.open_volume_list.append(order.volume)
+
                     self.write_log(f'{grid.direction.value}单已开仓完毕,order_price:{order.price}'
                                    + f',volume:{order.volume}')
                 else:
@@ -735,7 +739,9 @@ class CryptoFutureTemplate(CtaTemplate):
                     grid.open_status = False
                     grid.close_status = True
                     grid.close_fee = order.fee
-                    self.save_trade(order, grid)
+                    
+                    grid.close_price_list.append(order.price)
+                    grid.close_volume_list.append(order.volume)
 
                     if grid.volume < order.traded:
                         self.write_log(f'网格平仓数量{grid.volume}，小于委托单成交数量:{order.volume}，修正为:{order.volume}')
@@ -743,6 +749,16 @@ class CryptoFutureTemplate(CtaTemplate):
 
                     self.write_log(f'{grid.direction.value}单已平仓完毕,order_price:{order.price}'
                                    + f',volume:{order.volume}')
+
+                    if grid.volume == 0:
+                        for vt_orderid in grid.order_ids:
+                            self.cancel_order(vt_orderid)
+                        self.save_trade(order, grid)
+
+                    if grid.volume == grid.traded_volume:
+                        for vt_orderid in grid.order_ids:
+                            self.cancel_order(vt_orderid)
+                        self.save_trade(order, grid)
 
                     self.gt.remove_grids_by_ids(direction=grid.direction, ids=[grid.id])
 
@@ -756,6 +772,14 @@ class CryptoFutureTemplate(CtaTemplate):
 
                 self.write_log(f'{grid.direction.value}单部分{order.offset}仓，'
                                + f'网格volume:{grid.volume}, traded_volume:{old_traded_volume}=>{grid.traded_volume}')
+
+                grid.close_price_list.append(order.price)
+                grid.close_volume_list.append(order.volume)
+                if grid.volume == grid.traded_volume:
+                    for vt_orderid in grid.order_ids:
+                        self.cancel_order(vt_orderid)
+                    self.gt.remove_grids_by_ids(grid.direction, [grid.id])
+                    self.save_trade(order, grid)
 
                 self.write_log(f'剩余委托单号:{grid.order_ids}')
 
@@ -853,14 +877,16 @@ class CryptoFutureTemplate(CtaTemplate):
         self.active_orders.update({order.vt_orderid: old_order})
         pass
 
-    def grid_short(self, grid: CtaGrid, short_price, lock: bool = False, order_type: OrderType = OrderType.LIMIT):
+    def grid_short(self, grid: CtaGrid, short_price, lock: bool = False, volume :float = None, order_type: OrderType = OrderType.LIMIT):
         """
         事务开空仓
         :return:
         """
+        if not volume:
+            volume = grid.volume
         vt_orderids = self.short(vt_symbol=self.vt_symbol,
                                  price=short_price,
-                                 volume=grid.volume,
+                                 volume=volume,
                                  order_type=order_type,
                                  order_time=self.cur_datetime,
                                  grid=grid,
@@ -873,11 +899,13 @@ class CryptoFutureTemplate(CtaTemplate):
                              .format(grid.type, grid.open_price, grid.volume, grid.close_price))
             return False
 
-    def grid_buy(self, grid: CtaGrid, buy_price, lock: bool = False, order_type: OrderType = OrderType.LIMIT):
+    def grid_buy(self, grid: CtaGrid, buy_price, lock: bool = False, volume :float = None, order_type: OrderType = OrderType.LIMIT):
         """
         事务开多仓
         :return:
         """
+        if not volume:
+            volume = grid.volume
         vt_orderids = self.buy(vt_symbol=self.vt_symbol,
                                price=buy_price,
                                volume=grid.volume,
@@ -894,7 +922,7 @@ class CryptoFutureTemplate(CtaTemplate):
             return False
 
 
-    def grid_sell(self, grid: CtaGrid, sell_price, lock: bool = False, order_type: OrderType = OrderType.LIMIT):
+    def grid_sell(self, grid: CtaGrid, sell_price, lock: bool = False, volume :float = None, order_type: OrderType = OrderType.LIMIT):
         """
         事务平多单仓位
         1.来源自止损止盈平仓
@@ -907,10 +935,13 @@ class CryptoFutureTemplate(CtaTemplate):
             grid.volume = round(grid.volume, 7)
             grid.traded_volume = 0
 
+        if not volume:
+            volume = grid.volume
+
         vt_orderids = self.sell(
             vt_symbol=self.vt_symbol,
             price=sell_price,
-            volume=grid.volume,
+            volume=volume,
             order_type=order_type,
             order_time=self.cur_datetime,
             grid=grid,
@@ -923,7 +954,7 @@ class CryptoFutureTemplate(CtaTemplate):
 
             return True
 
-    def grid_cover(self, grid: CtaGrid, cover_price, lock: bool = False, order_type: OrderType = OrderType.LIMIT):
+    def grid_cover(self, grid: CtaGrid, cover_price, lock: bool = False, volume :float = None, order_type: OrderType = OrderType.LIMIT):
         """
         事务平空单仓位
         1.来源自止损止盈平仓
@@ -936,10 +967,13 @@ class CryptoFutureTemplate(CtaTemplate):
             grid.volume = round(grid.volume, 7)
             grid.traded_volume = 0
 
+        if not volume:
+            volume = grid.volume
+
         vt_orderids = self.cover(
             price=cover_price,
             vt_symbol=self.vt_symbol,
-            volume=grid.volume,
+            volume=volume,
             order_type=order_type,
             order_time=self.cur_datetime,
             grid=grid,
@@ -973,7 +1007,7 @@ class CryptoFutureTemplate(CtaTemplate):
             my_sheet = workbook.create_sheet("Mysheet", index=0)
             
             row = 1
-            head = ['品种', '开仓时间', '平仓时间', '方向', '数量', '目标开仓价格', '目标平仓价格', '实际开仓价格', '实际平仓价格', '开仓手续费', '平仓手续费', '平仓收益' , '净收入']
+            head = ['品种', '开仓时间', '平仓时间', '方向', '数量', '目标开仓价格', '目标平仓价格', '实际开仓价格', '实际平仓价格', '开仓手续费', '平仓手续费', '平仓收益' , '净收入', '滑点']
             for i, item in enumerate(head):
                 my_sheet.cell(row, i + 1, item)
             my_sheet.column_dimensions["A"].width = 20
@@ -986,13 +1020,44 @@ class CryptoFutureTemplate(CtaTemplate):
         my_sheet.cell(row, 3, order.datetime)
         my_sheet.cell(row, 4, grid.direction.value if isinstance(grid.direction, Direction) else '')
         my_sheet.cell(row, 5, grid.volume)
-        my_sheet.cell(row, 6, grid.open_price)
-        my_sheet.cell(row, 7, order.price)
-        my_sheet.cell(row, 8, grid.open_fee)
-        my_sheet.cell(row, 9, grid.close_fee)
         
-        my_sheet.cell(row, 10, order.netpnl)
-        my_sheet.cell(row, 11, order.netpnl - grid.open_fee - grid.close_fee)
+        netpnl = grid.netpnl
+        if netpnl > 0:
+            close_price = grid.close_price
+        else:
+            close_price = grid.stop_price
+
+        my_sheet.cell(row, 6, grid.open_price)
+        my_sheet.cell(row, 7, close_price)
+
+        real_open_price = 0
+        real_open_price_num = len(grid.open_price_list)
+        for i in range(real_open_price_num):
+            temp_open_price = grid.open_price_list[i]
+            temp_open_volume = grid.open_volume_list[i]
+            real_open_price += temp_open_price * temp_open_volume
+        real_open_price = real_open_price / grid.volume
+        if real_open_price == 0:
+            # 防止程序过渡时价格为空
+            real_open_price = grid.open_price
+
+        real_close_price = 0
+        real_close_num = len(grid.close_price_list)
+        for i in range(real_close_num):
+            temp_close_price = grid.close_price_list[i]
+            temp_close_volume = grid.close_volume_list[i]
+            real_close_price += temp_close_price * temp_close_volume
+        real_close_price = real_close_price / grid.volume
+        my_sheet.cell(row, 8, real_open_price)
+        my_sheet.cell(row, 9 , real_close_price)
+
+
+        my_sheet.cell(row, 10, grid.open_fee)
+        my_sheet.cell(row, 11, grid.close_fee)
+        my_sheet.cell(row, 12, netpnl)
+        my_sheet.cell(row, 13, netpnl - grid.open_fee - grid.close_fee)
+        slip_page = round(abs(grid.open_price - real_open_price) + abs(close_price - real_close_price), 7)
+        my_sheet.cell(row, 14, slip_page)
         
         workbook.save(xlsx_file)
 
