@@ -1022,7 +1022,7 @@ class CryptoFutureTemplate(CtaTemplate):
         my_sheet.cell(row, 5, grid.volume)
         
         netpnl = grid.netpnl
-        if netpnl > 0:
+        if order.price > grid.open_price:
             close_price = grid.close_price
         else:
             close_price = grid.stop_price
