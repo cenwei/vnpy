@@ -520,6 +520,17 @@ class CtaEngine(BaseEngine):
         else:
             return None
 
+    def get_volume_tick(self, strategy: CtaTemplate):
+        """
+        Return contract min volume data.
+        """
+        contract = self.main_engine.get_contract(strategy.vt_symbol)
+
+        if contract:
+            return contract.min_volume
+        else:
+            return None
+
     def get_margin_rate(self, strategy: CtaTemplate):
         """
         返回保证金比率.
