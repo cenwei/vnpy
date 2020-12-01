@@ -282,6 +282,12 @@ class CtaTemplate(ABC):
         """
         return self.cta_engine.get_pricetick(self)
 
+    def get_volume_tick(self):
+        """
+        查询合约最小成交单位
+        """
+        return self.cta_engine.get_volume_tick(self)
+
     def get_size(self):
         """
         返回杠杆倍数.
@@ -528,6 +534,7 @@ class CryptoFutureTemplate(CtaTemplate):
         self.gt = CtaGridTrade(strategy=self)
 
         self.size = self.get_size()
+        self.volume_size = self.get_volume_tick()
 
     def init_position(self):
         """
