@@ -1024,7 +1024,7 @@ class CryptoFutureTemplate(CtaTemplate):
 
         my_sheet.cell(row, 1, grid.vt_symbol)
         my_sheet.cell(row, 2, grid.open_time)
-        my_sheet.cell(row, 3, order.datetime)
+        my_sheet.cell(row, 3, datetime.datetime.now())
         my_sheet.cell(row, 4, grid.direction.value if isinstance(grid.direction, Direction) else '')
         my_sheet.cell(row, 5, grid.volume)
         
