@@ -457,6 +457,10 @@ class BinancesRestApi(RestClient):
         if order_type == "STOP":
             params['stopPrice'] = float(req.price)
 
+        if order_type == "MARKET":
+            params.pop('price', None)
+            params.pop('timeInForce', None)
+
         # if req.offset == Offset.CLOSE:
         #     params["reduceOnly"] = True
 
