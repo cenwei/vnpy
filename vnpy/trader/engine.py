@@ -61,6 +61,8 @@ class MainEngine:
         self.apps: Dict[str, BaseApp] = {}
         self.exchanges: List[Exchange] = []
 
+        self.rpc_service = None
+
         os.chdir(TRADER_DIR)    # Change working directory
         self.init_engines()     # Initialize function engines
 
@@ -70,6 +72,9 @@ class MainEngine:
         """
         engine = engine_class(self, self.event_engine)
         self.engines[engine.engine_name] = engine
+
+        if engine.engine_name == 'RpcService':
+            self.rpc_service = engine
         return engine
 
     def add_gateway(self, gateway_class: Type[BaseGateway]) -> BaseGateway:
