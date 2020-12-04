@@ -319,6 +319,18 @@ class BarGenerator:
                     if not self.interval_count % self.window:
                         finished = True
                         self.interval_count = 0
+        elif self.interval == Interval.DAILY:
+            if self.last_bar and bar.datetime.day != self.last_bar.datetime.day:
+                # 1-hour bar
+                if self.window == 1:
+                    finished = True
+                # x-hour bar
+                else:
+                    self.interval_count += 1
+
+                    if not self.interval_count % self.window:
+                        finished = True
+                        self.interval_count = 0
 
         if finished:
             self.on_window_bar(self.window_bar)

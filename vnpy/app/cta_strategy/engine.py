@@ -1,6 +1,7 @@
 """"""
 
 import importlib
+import json
 import logging
 import os
 import sys
@@ -11,6 +12,7 @@ from typing import Any, Callable
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor
 from copy import copy
+from vnpy.trader.setting import SETTINGS
 from tzlocal import get_localzone
 from functools import lru_cache
 
@@ -87,6 +89,8 @@ class CtaEngine(BaseEngine):
         self.classes = {}           # class_name: stategy_class
         self.strategies = {}        # strategy_name: strategy
 
+        # Strategy pos dict,key:strategy instance name, value: pos dict
+        self.strategy_pos_dict = {}
         self.strategy_loggers = {}  # strategy_name: logger
 
         self.symbol_strategy_map = defaultdict(
@@ -114,7 +118,9 @@ class CtaEngine(BaseEngine):
         self.load_strategy_class()
         self.load_strategy_setting()
         self.load_strategy_data()
+
         self.register_event()
+        self.register_funcs()
         self.write_log("CTA策略引擎初始化成功")
 
     def close(self):
@@ -128,13 +134,37 @@ class CtaEngine(BaseEngine):
         self.event_engine.register(EVENT_TRADE, self.process_trade_event)
         self.event_engine.register(EVENT_POSITION, self.process_position_event)
 
+    def register_funcs(self):
+        """
+        register the funcs to main_engine
+        :return:
+        """
+        self.main_engine.compare_pos = self.compare_pos
+
+        # 注册到远程服务调用
+        if self.main_engine.rpc_service:
+            self.main_engine.rpc_service.register(self.main_engine.get_strategy_status)
+            self.main_engine.rpc_service.register(self.main_engine.get_strategy_pos)
+            self.main_engine.rpc_service.register(self.main_engine.compare_pos)
+            self.main_engine.rpc_service.register(self.main_engine.add_strategy)
+            self.main_engine.rpc_service.register(self.main_engine.init_strategy)
+            self.main_engine.rpc_service.register(self.main_engine.start_strategy)
+            self.main_engine.rpc_service.register(self.main_engine.stop_strategy)
+            self.main_engine.rpc_service.register(self.main_engine.remove_strategy)
+            self.main_engine.rpc_service.register(self.main_engine.reload_strategy)
+            # self.main_engine.rpc_service.register(self.main_engine.save_strategy_data)
+            # self.main_engine.rpc_service.register(self.main_engine.save_strategy_snapshot)
+            # self.main_engine.rpc_service.register(self.main_engine.clean_strategy_cache)
+
     def init_rqdata(self):
         """
         Init RQData client.
         """
-        result = rqdata_client.init()
-        if result:
-            self.write_log("RQData数据接口初始化成功")
+        username = SETTINGS["rqdata.username"]
+        if username:
+            result = rqdata_client.init()
+            if result:
+                self.write_log("RQData数据接口初始化成功")
 
     def query_bar_from_rq(
         self, symbol: str, exchange: Exchange, interval: Interval, start: datetime, end: datetime
@@ -829,6 +859,50 @@ class CtaEngine(BaseEngine):
 
         return True
 
+    def reload_strategy(self, strategy_name: str, vt_symbol: str = '', setting: dict = {}):
+        """
+        重新加载策略
+        一般使用于在线更新策略代码，或者更新策略参数，需要重新启动策略
+        """
+        self.write_log(f'开始重新加载策略{strategy_name}')
+        
+        # 优先判断重启的策略，是否已经加载
+        if strategy_name not in self.strategies or strategy_name not in self.strategy_setting:
+            err_msg = f"{strategy_name}不在运行策略中，不能重启"
+            self.write_error(err_msg)
+            return False, err_msg
+
+        # 从本地配置文件中读取
+        if len(setting) == 0:
+            strategies_setting = load_json(self.setting_filename)
+            old_strategy_config = strategies_setting.get(strategy_name, {})
+        else:
+            old_strategy_config = copy(self.strategy_setting[strategy_name])
+
+        class_name = old_strategy_config.get('class_name')
+        if len(vt_symbol) == 0:
+            vt_symbol = old_strategy_config.get('vt_symbol')
+        if len(setting) == 0:
+            setting = old_strategy_config.get('setting')
+
+        # 停止当前策略实例的运行，撤单
+        self.stop_strategy(strategy_name)
+
+        # 移除运行中的策略实例
+        self.remove_strategy(strategy_name)
+
+        # 重新添加策略
+        self.add_strategy(class_name=class_name,
+                          strategy_name=strategy_name,
+                          vt_symbol=vt_symbol,
+                          setting=setting,
+                          auto_init=old_strategy_config.get('auto_init', True),
+                          auto_start=old_strategy_config.get('auto_start', True))
+
+        msg = f'成功重载策略{strategy_name}'
+        self.write_log(msg)
+        return True, msg
+
     def load_strategy_class(self):
         """
         Load strategy class from source code.
@@ -887,6 +961,84 @@ class CtaEngine(BaseEngine):
         Return names of strategy classes loaded.
         """
         return list(self.classes.keys())
+
+    def get_strategy_status(self):
+        """
+        return strategy inited/trading status
+        """
+        return {k: {'inited': v.inited, 'trading': v.trading} for k, v in self.strategies.items()}
+
+    def get_strategy_pos(self, name, strategy=None):
+        """
+        获取策略的持仓字典
+        :param name:策略名
+        :return: [ {},{}]
+        """
+        # 兼容处理，如果strategy是None，通过name获取
+        if strategy is None:
+            if name not in self.strategies:
+                self.write_log(u'getStategyPos 策略实例不存在：' + name)
+                return []
+            # 获取策略实例
+            strategy = self.strategies[name]
+
+        pos_list = []
+
+        if strategy.inited:
+            # 如果策略具有getPositions得方法，则调用该方法
+            if hasattr(strategy, 'get_positions'):
+                pos_list = strategy.get_positions()
+                for pos in pos_list:
+                    vt_symbol = pos.get('vt_symbol', None)
+                    if vt_symbol:
+                        symbol, exchange = extract_vt_symbol(vt_symbol)
+                        pos.update({'symbol': symbol})
+
+            # 如果策略有 ctaPosition属性
+            elif hasattr(strategy, 'position') and issubclass(strategy.position, CtaPosition):
+                symbol, exchange = extract_vt_symbol(strategy.vt_symbol)
+                # 多仓
+                long_pos = {}
+                long_pos['vt_symbol'] = strategy.vt_symbol
+                long_pos['symbol'] = symbol
+                long_pos['direction'] = 'long'
+                long_pos['volume'] = strategy.position.long_pos
+                if long_pos['volume'] > 0:
+                    pos_list.append(long_pos)
+
+                # 空仓
+                short_pos = {}
+                short_pos['vt_symbol'] = strategy.vt_symbol
+                short_pos['symbol'] = symbol
+                short_pos['direction'] = 'short'
+                short_pos['volume'] = abs(strategy.position.short_pos)
+                if short_pos['volume'] > 0:
+                    pos_list.append(short_pos)
+
+            # 获取模板缺省pos属性
+            elif hasattr(strategy, 'pos') and isinstance(strategy.pos, int):
+                symbol, exchange = extract_vt_symbol(strategy.vt_symbol)
+                if strategy.pos > 0:
+                    long_pos = {}
+                    long_pos['vt_symbol'] = strategy.vt_symbol
+                    long_pos['symbol'] = symbol
+                    long_pos['direction'] = 'long'
+                    long_pos['volume'] = strategy.pos
+                    if long_pos['volume'] > 0:
+                        pos_list.append(long_pos)
+                elif strategy.pos < 0:
+                    short_pos = {}
+                    short_pos['symbol'] = symbol
+                    short_pos['vt_symbol'] = strategy.vt_symbol
+                    short_pos['direction'] = 'short'
+                    short_pos['volume'] = abs(strategy.pos)
+                    if short_pos['volume'] > 0:
+                        pos_list.append(short_pos)
+
+        # update local pos dict
+        self.strategy_pos_dict.update({name: pos_list})
+
+        return pos_list
 
     def get_strategy_class_parameters(self, class_name: str):
         """
@@ -1016,3 +1168,141 @@ class CtaEngine(BaseEngine):
             subject = "CTA策略引擎"
 
         self.main_engine.send_email(subject, msg)
+
+    def compare_pos(self, strategy_pos_list=[], auto_balance=False):
+        """
+        对比账号&策略的持仓,不同的话则发出邮件提醒
+        """
+        # 当前没有接入网关
+        if len(self.main_engine.gateways) == 0:
+            return False, u'当前没有接入网关'
+
+        self.write_log(u'开始对比账号&策略的持仓')
+
+        # 获取当前策略得持仓
+        if len(strategy_pos_list) == 0:
+            strategy_pos_list = self.get_all_strategy_pos()
+        self.write_log(u'策略持仓清单:{}'.format(strategy_pos_list))
+
+        none_strategy_pos = self.get_none_strategy_pos_list()
+        if len(none_strategy_pos) > 0:
+            strategy_pos_list.extend(none_strategy_pos)
+
+        # 需要进行对比得合约集合（来自策略持仓/账号持仓）
+        vt_symbols = set()
+
+        # 账号的持仓处理 => compare_pos
+        compare_pos = dict()  # vt_symbol: {'账号多单': xx, '账号空单':xxx, '策略空单':[], '策略多单':[]}
+
+        for position in list(self.positions.values()):
+            # gateway_name.symbol.exchange => symbol.exchange
+            vt_symbol = position.vt_symbol
+            vt_symbols.add(vt_symbol)
+
+            compare_pos[vt_symbol] = OrderedDict(
+                {
+                    "账号净仓": position.volume,
+                    '策略空单': 0,
+                    '策略多单': 0,
+                    '空单策略': [],
+                    '多单策略': []
+                }
+            )
+
+        # 逐一根据策略仓位，与Account_pos进行处理比对
+        for strategy_pos in strategy_pos_list:
+            for pos in strategy_pos.get('pos', []):
+                vt_symbol = pos.get('vt_symbol')
+                if not vt_symbol:
+                    continue
+                vt_symbols.add(vt_symbol)
+                symbol_pos = compare_pos.get(vt_symbol, None)
+                if symbol_pos is None:
+                    self.write_log(u'账号持仓信息获取不到{}，创建一个'.format(vt_symbol))
+                    symbol_pos = OrderedDict(
+                        {
+                            "账号净仓": 0,
+                            '策略空单': 0,
+                            '策略多单': 0,
+                            '空单策略': [],
+                            '多单策略': []
+                        }
+                    )
+
+                if pos.get('direction') == 'short':
+                    symbol_pos.update({'策略空单': round(symbol_pos.get('策略空单', 0) + abs(pos.get('volume', 0)), 7)})
+                    symbol_pos['空单策略'].append(
+                        u'{}({})'.format(strategy_pos['strategy_name'], abs(pos.get('volume', 0))))
+                    self.write_log(u'更新{}策略持空仓=>{}'.format(vt_symbol, symbol_pos.get('策略空单', 0)))
+                if pos.get('direction') == 'long':
+                    symbol_pos.update({'策略多单': round(symbol_pos.get('策略多单', 0) + abs(pos.get('volume', 0)), 7)})
+                    symbol_pos['多单策略'].append(
+                        u'{}({})'.format(strategy_pos['strategy_name'], abs(pos.get('volume', 0))))
+                    self.write_log(u'更新{}策略持多仓=>{}'.format(vt_symbol, symbol_pos.get('策略多单', 0)))
+
+        pos_compare_result = ''
+        # 精简输出
+        compare_info = ''
+
+        for vt_symbol in sorted(vt_symbols):
+            # 发送不一致得结果
+            symbol_pos = compare_pos.pop(vt_symbol, None)
+            if not symbol_pos:
+                self.write_error(f'持仓对比中，找不到{vt_symbol}')
+                continue
+            net_symbol_pos = round(round(symbol_pos['策略多单'], 7) - round(symbol_pos['策略空单'], 7), 7)
+
+            # 多空都一致
+            if round(symbol_pos['账号净仓'], 7) == net_symbol_pos:
+                msg = u'{}多空都一致.{}\n'.format(vt_symbol, json.dumps(symbol_pos, indent=2, ensure_ascii=False))
+                self.write_log(msg)
+                compare_info += msg
+            else:
+                pos_compare_result += '\n{}: {}'.format(vt_symbol, json.dumps(symbol_pos, indent=2, ensure_ascii=False))
+                self.write_error(u'{}不一致:{}'.format(vt_symbol, json.dumps(symbol_pos, indent=2, ensure_ascii=False)))
+                compare_info += u'{}不一致:{}\n'.format(vt_symbol, json.dumps(symbol_pos, indent=2, ensure_ascii=False))
+
+                diff_volume = round(symbol_pos['账号净仓'], 7) - net_symbol_pos
+                # 账号仓位> 策略仓位, sell
+                if diff_volume > 0 and auto_balance:
+                    contract = self.main_engine.get_contract(vt_symbol)
+                    req = OrderRequest(
+                        symbol=contract.symbol,
+                        exchange=contract.exchange,
+                        direction=Direction.SHORT,
+                        offset=Offset.CLOSE,
+                        type=OrderType.MARKET,
+                        price=0,
+                        volume=round(diff_volume,7)
+                    )
+                    self.write_log(f'卖出{vt_symbol} {req.volume}，平衡仓位')
+                    self.main_engine.send_order(req, contract.gateway_name)
+
+                # 账号仓位 < 策略仓位 ,buy
+                elif diff_volume < 0 and auto_balance:
+                    contract = self.main_engine.get_contract(vt_symbol)
+                    req = OrderRequest(
+                        symbol=contract.symbol,
+                        exchange=contract.exchange,
+                        direction=Direction.LONG,
+                        offset=Offset.OPEN,
+                        type=OrderType.MARKET,
+                        price=0,
+                        volume=round(-diff_volume, 7)
+                    )
+                    self.write_log(f'买入{vt_symbol} {req.volume}，平衡仓位')
+                    self.main_engine.send_order(req, contract.gateway_name)
+
+        # 不匹配，输入到stdErr通道
+        if pos_compare_result != '':
+            msg = u'账户{}持仓不匹配: {}' \
+                .format(self.engine_config.get('accountid', '-'),
+                        pos_compare_result)
+            self.send_email(msg)
+            ret_msg = u'持仓不匹配: {}' \
+                .format(pos_compare_result)
+            self.write_error(ret_msg)
+            return True, compare_info + ret_msg
+        else:
+            self.write_log(u'账户持仓与策略一致')
+            return True, compare_info

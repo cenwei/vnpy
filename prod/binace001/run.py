@@ -19,7 +19,7 @@ from vnpy.trader.engine import MainEngine
 from vnpy.gateway.binances import BinancesGateway
 from vnpy.app.cta_strategy import CtaStrategyApp
 from vnpy.app.risk_manager import RiskManagerApp
-# from vnpy.app.rpc_service import RpcServiceApp
+from vnpy.app.rpc_service import RpcServiceApp
 from vnpy.trader.utility import load_json, save_json
 from vnpy.app.cta_strategy.base import EVENT_CTA_LOG
 
@@ -33,7 +33,7 @@ def run_child():
     event_engine = EventEngine()
     main_engine = MainEngine(event_engine)
     main_engine.add_gateway(BinancesGateway)
-    # rpc_engine = main_engine.add_app(RpcServiceApp)
+    rpc_engine = main_engine.add_app(RpcServiceApp)
     cta_engine = main_engine.add_app(CtaStrategyApp)
     main_engine.add_app(RiskManagerApp)
     main_engine.write_log("主引擎创建成功")
@@ -47,14 +47,11 @@ def run_child():
 
     main_engine.connect(binances_setting, gateway_name)
 
-    # connect_data = load_json("proxy_connect_status.json")
-    # connect_data.update({gateway_name: True})
-    # save_json("proxy_connect_status.json", connect_data)
     main_engine.write_log("连接BINANCES接口")
 
     sleep(10)
-
-    # rpc_engine.start()
+    rpc_setting = load_json("rpc_service_setting.json")
+    rpc_engine.start(rpc_setting['rep_address'], rpc_setting['pub_address'])
 
     cta_engine.init_engine()
     main_engine.write_log("CTA策略初始化完成")
@@ -69,8 +66,8 @@ def run_child():
     def ctrl_handler(signum, frame):
         cta_engine.stop_all_strategies()
         cta_engine.close()
+        rpc_engine.close()
         main_engine.close()
-        sleep(5)
         sys.exit(0)
 
     signal.signal(signal.SIGINT, ctrl_handler)
