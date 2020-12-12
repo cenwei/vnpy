@@ -771,62 +771,64 @@ class BinancesRestApi(RestClient):
                 data={"security": Security.NONE},
                 params=params
             )
+            
+            if isinstance(resp, requests.Response):
 
-            # Break if request failed with other status code
-            if resp.status_code // 100 != 2:
-                msg = f"获取历史数据失败，状态码：{resp.status_code}，信息：{resp.text}"
-                self.gateway.write_log(msg)
-                break
-            else:
-                data = resp.json()
-                if not data:
-                    msg = f"获取历史数据为空，开始时间：{start_time}"
+                # Break if request failed with other status code
+                if resp.status_code // 100 != 2:
+                    msg = f"获取历史数据失败，状态码：{resp.status_code}，信息：{resp.text}"
                     self.gateway.write_log(msg)
                     break
+                else:
+                    data = resp.json()
+                    if not data:
+                        msg = f"获取历史数据为空，开始时间：{start_time}"
+                        self.gateway.write_log(msg)
+                        break
 
-                buf = []
-                end_timestamp = 0
+                    buf = []
+                    end_timestamp = 0
 
-                for l in data:
-                    bar = BarData(
-                        symbol=req.symbol,
-                        exchange=req.exchange,
-                        datetime=generate_datetime(l[0]),
-                        interval=req.interval,
-                        volume=float(l[5]),
-                        open_price=float(l[1]),
-                        high_price=float(l[2]),
-                        low_price=float(l[3]),
-                        close_price=float(l[4]),
-                        gateway_name=self.gateway_name
-                    )
-                    buf.append(bar)
-                    end_timestamp = l[0]
+                    for l in data:
+                        bar = BarData(
+                            symbol=req.symbol,
+                            exchange=req.exchange,
+                            datetime=generate_datetime(l[0]),
+                            interval=req.interval,
+                            volume=float(l[5]),
+                            open_price=float(l[1]),
+                            high_price=float(l[2]),
+                            low_price=float(l[3]),
+                            close_price=float(l[4]),
+                            gateway_name=self.gateway_name
+                        )
+                        buf.append(bar)
+                        end_timestamp = l[0]
 
-                history.extend(buf)
+                    history.extend(buf)
 
-                begin = buf[0].datetime
-                end = buf[-1].datetime
-                msg = f"获取历史数据成功，{req.symbol} - {req.interval.value}，{begin} - {end}"
-                self.gateway.write_log(msg)
+                    begin = buf[0].datetime
+                    end = buf[-1].datetime
+                    msg = f"获取历史数据成功，{req.symbol} - {req.interval.value}，{begin} - {end}"
+                    self.gateway.write_log(msg)
 
-                # Break if total data count less than limit (latest date collected)
-                if len(data) < limit:
-                    break
+                    # Break if total data count less than limit (latest date collected)
+                    if len(data) < limit:
+                        break
 
-                # Update start time
-                bar = buf[-1]
-                # start_dt = bar.datetime + TIMEDELTA_MAP[req.interval]
-                # start_time = int(datetime.timestamp(start_dt))
-                time_delta_stamp = 60
-                if req.interval == Interval.HOUR:
-                    time_delta_stamp = 60 * 60
-                elif req.interval == Interval.DAILY:
-                    time_delta_stamp = 60 * 60 * 24
-                start_time = int(end_timestamp / 1000) + time_delta_stamp
-                if start_time > int(datetime.timestamp(req.end)):
-                    print("开始时间大于结束时间")
-                    break
+                    # Update start time
+                    bar = buf[-1]
+                    # start_dt = bar.datetime + TIMEDELTA_MAP[req.interval]
+                    # start_time = int(datetime.timestamp(start_dt))
+                    time_delta_stamp = 60
+                    if req.interval == Interval.HOUR:
+                        time_delta_stamp = 60 * 60
+                    elif req.interval == Interval.DAILY:
+                        time_delta_stamp = 60 * 60 * 24
+                    start_time = int(end_timestamp / 1000) + time_delta_stamp
+                    if start_time > int(datetime.timestamp(req.end)):
+                        print("开始时间大于结束时间")
+                        break
 
         return history
 
