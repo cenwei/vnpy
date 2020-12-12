@@ -13,6 +13,7 @@ from enum import Enum
 from threading import Lock
 from typing import Dict, List, Tuple
 import pytz
+import requests
 
 from vnpy.api.rest import RestClient, Request
 from vnpy.api.websocket import WebsocketClient
@@ -507,12 +508,17 @@ class BinancesRestApi(RestClient):
             data=data,
         )
 
-        if resp.status_code // 100 != 2:
-            msg = f"取消委托失败，状态码：{resp.status_code}，信息：{resp.text}"
+        if isinstance(resp, requests.Response):
+            if resp.status_code // 100 != 2:
+                msg = f"取消委托失败，状态码：{resp.status_code}，信息：{resp.text}"
+                self.gateway.write_log(msg)
+                return False
+            else:
+                return True
+        else:
+            msg = f"网络连接失败，取消委托失败"
             self.gateway.write_log(msg)
             return False
-        else:
-            return True
 
     def on_default_error(
         self, exception_type: type, exception_value: Exception, tb, request: Request
