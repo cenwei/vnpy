@@ -330,12 +330,26 @@ class RestClient(object):
 
         url = self.make_full_url(request.path)
 
-        response = requests.request(
-            request.method,
-            url,
-            headers=request.headers,
-            params=request.params,
-            data=request.data,
-            proxies=self.proxies,
-        )
-        return response
+        try:
+            response = requests.request(
+                request.method,
+                url,
+                headers=request.headers,
+                params=request.params,
+                data=request.data,
+                proxies=self.proxies,
+            )
+            return response
+        except requests.exceptions.ConnectionError:
+            pass
+        except ConnectionResetError:
+            pass
+        except SocketError:
+            pass
+        except Exception:
+            request.status = RequestStatus.error
+            t, v, tb = sys.exc_info()
+            if request.on_error:
+                request.on_error(t, v, tb, request)
+            else:
+                self.on_error(t, v, tb, request)
