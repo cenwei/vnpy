@@ -78,6 +78,9 @@ class CtaEngine(BaseEngine):
     setting_filename = "cta_strategy_setting.json"
     data_filename = "cta_strategy_data.json"
 
+    # 引擎配置文件
+    engine_filename = "cta_strategy_config.json"
+
     def __init__(self, main_engine: MainEngine, event_engine: EventEngine):
         """"""
         super(CtaEngine, self).__init__(
@@ -88,6 +91,7 @@ class CtaEngine(BaseEngine):
 
         self.classes = {}           # class_name: stategy_class
         self.strategies = {}        # strategy_name: strategy
+        self.engine_config = {}
 
         # Strategy pos dict,key:strategy instance name, value: pos dict
         self.strategy_pos_dict = {}
@@ -126,6 +130,9 @@ class CtaEngine(BaseEngine):
     def close(self):
         """"""
         self.stop_all_strategies()
+
+        # 保存引擎配置
+        save_json(self.engine_filename, self.engine_config)
 
     def register_event(self):
         """"""
@@ -1115,6 +1122,9 @@ class CtaEngine(BaseEngine):
         """
         Load setting file.
         """
+        # 读取引擎得配置
+        self.engine_config = load_json(self.engine_filename)
+
         self.strategy_setting = load_json(self.setting_filename)
 
         for strategy_name, strategy_config in self.strategy_setting.items():
