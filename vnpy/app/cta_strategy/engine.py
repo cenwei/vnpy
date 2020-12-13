@@ -46,6 +46,7 @@ from vnpy.trader.util_logger import setup_logger
 from vnpy.trader.database import database_manager
 from vnpy.trader.rqdata import rqdata_client
 from vnpy.trader.converter import OffsetConverter
+from vnpy.component.cta_position import CtaPosition
 
 from .base import (
     APP_NAME,
@@ -1201,6 +1202,12 @@ class CtaEngine(BaseEngine):
         log = LogData(msg=msg, gateway_name=APP_NAME)
         event = Event(type=EVENT_CTA_LOG, data=log)
         self.event_engine.put(event)
+
+    def write_error(self, msg: str, strategy_name: str = ''):
+        """
+        写入错误日志
+        """
+        self.write_log(msg=msg, strategy_name=strategy_name, level=logging.ERROR)
         
     def send_email(self, msg: str, strategy: CtaTemplate = None):
         """
