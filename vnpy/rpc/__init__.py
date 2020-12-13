@@ -323,6 +323,11 @@ class RpcClient:
         self.__socket_req.close()
         self.__socket_sub.close()
 
+    def close(self):
+        """close receiver, exit"""
+        self.stop()
+        self.join()
+
     @staticmethod
     def _on_unexpected_disconnected():
         print("RpcServer has no response over {tolerance} seconds, please check you connection."
