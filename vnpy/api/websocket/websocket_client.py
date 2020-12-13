@@ -10,6 +10,7 @@ from time import sleep
 from typing import Optional
 
 import websocket
+from websocket import _exceptions as wb_exceptions
 
 from vnpy.trader.utility import get_file_logger
 
@@ -219,6 +220,7 @@ class WebsocketClient:
                 except (
                     websocket.WebSocketConnectionClosedException,
                     websocket.WebSocketBadStatusException,
+                    wb_exceptions.WebSocketAddressException,
                     socket.error
                 ):
                     self._disconnect()
