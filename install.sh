@@ -7,6 +7,9 @@ shift 2
 [[ -z $python ]] && python=python
 [[ -z $prefix ]] && prefix=/usr
 
+apt install build-essential libcurl4-gnutls-dev libxml2-dev libssl-dev
+apt install python3-pyqt5
+
 $python -m pip install --upgrade pip setuptools wheel
 
 # Get and build ta-lib
@@ -39,7 +42,7 @@ $python -m pip install https://pip.vnpy.com/colletion/ibapi-9.76.1.tar.gz
 $python -m pip install -r requirements.txt
 
 # Install local Chinese language environment
-locale-gen zh_CN.GB18030
+locale-gen zh_CN.UTF-8
 
 # Install vn.py
-$python -m pip install . $@
+# $python -m pip install . $@
