@@ -1048,6 +1048,32 @@ class CtaEngine(BaseEngine):
 
         return pos_list
 
+    def get_all_strategy_pos(self):
+        """
+        获取所有得策略仓位明细
+        """
+        strategy_pos_list = []
+        for strategy_name in list(self.strategies.keys()):
+            d = OrderedDict()
+            d['accountid'] = self.engine_config.get('accountid', '-')
+            d['strategy_group'] = self.engine_config.get('strategy_group', self.engine_name)
+            d['strategy_name'] = strategy_name
+            dt = datetime.now()
+            d['trading_day'] = dt.strftime('%Y-%m-%d')
+            d['datetime'] = datetime.now()
+            strategy = self.strategies.get(strategy_name)
+            d['inited'] = strategy.inited
+            d['trading'] = strategy.trading
+            try:
+                d['pos'] = self.get_strategy_pos(name=strategy_name)
+            except Exception as ex:
+                self.write_error(
+                    u'get_strategy_pos exception:{},{}'.format(str(ex), traceback.format_exc()))
+                d['pos'] = []
+            strategy_pos_list.append(d)
+
+        return strategy_pos_list
+
     def get_strategy_class_parameters(self, class_name: str):
         """
         Get default parameters of a strategy class.
@@ -1176,6 +1202,23 @@ class CtaEngine(BaseEngine):
             subject = "CTA策略引擎"
 
         self.main_engine.send_email(subject, msg)
+
+    def get_none_strategy_pos_list(self):
+        """获取非策略持有的仓位"""
+        # 格式 [  'strategy_name':'account', 'pos': [{'vt_symbol': '', 'direction': 'xxx', 'volume':xxx }] } ]
+        none_strategy_pos_file = os.path.abspath(os.path.join(os.getcwd(), 'data', 'none_strategy_pos.json'))
+        if not os.path.exists(none_strategy_pos_file):
+            return []
+        try:
+            with open(none_strategy_pos_file, encoding='utf8') as f:
+                pos_list = json.load(f)
+                if isinstance(pos_list, list):
+                    return pos_list
+
+            return []
+        except Exception as ex:
+            self.write_error(u'未能读取或解释{}'.format(none_strategy_pos_file))
+            return []
 
     def compare_pos(self, strategy_pos_list=[], auto_balance=False):
         """
