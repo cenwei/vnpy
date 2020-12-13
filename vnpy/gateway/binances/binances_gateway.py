@@ -201,6 +201,10 @@ class BinancesGateway(BaseGateway):
     def process_timer_event(self, event: Event) -> None:
         """"""
         self.rest_api.keep_user_stream()
+        if self.status.get('td_con', False) \
+                and self.status.get('tdws_con', False) \
+                and self.status.get('mdws_con', False):
+            self.status.update({'con': True})
 
 
 class BinancesRestApi(RestClient):
@@ -318,7 +322,10 @@ class BinancesRestApi(RestClient):
         self.start(session_number)
 
         self.gateway.write_log("REST API启动成功")
-
+        self.gateway.status.update({'td_con': True, 'td_con_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')})
+        if self.gateway.status.get('md_con', False):
+            self.gateway.status.update({'con': True})
+        
         self.query_time()
         self.query_account()
         self.query_position()
@@ -834,6 +841,9 @@ class BinancesTradeWebsocketApi(WebsocketClient):
     def on_connected(self) -> None:
         """"""
         self.gateway.write_log("交易Websocket API连接成功")
+        self.gateway.status.update({'tdws_con': True, 'tdws_con_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')})
+        if self.gateway.status.get('td_con', False):
+            self.gateway.status.update({'con': True})
 
     def on_packet(self, packet: dict) -> None:  # type: (dict)->None
         """"""
@@ -948,6 +958,9 @@ class BinancesDataWebsocketApi(WebsocketClient):
     def on_connected(self) -> None:
         """"""
         self.gateway.write_log("行情Websocket API连接刷新")
+        self.gateway.status.update({'md_con': True, 'md_con_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')})
+        if self.gateway.status.get('td_con', False):
+            self.gateway.status.update({'con': True})
 
     def subscribe(self, req: SubscribeRequest) -> None:
         """"""

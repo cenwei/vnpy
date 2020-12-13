@@ -87,6 +87,8 @@ class BaseGateway(ABC):
         self.gateway_name: str = gateway_name
         self.gateway_loggers = {}  # gateway_name: logger
 
+        self.status = {'name': gateway_name, 'con': False}
+
     def on_event(self, type: str, data: Any = None) -> None:
         """
         General event push.
@@ -273,6 +275,13 @@ class BaseGateway(ABC):
         Return default setting dict.
         """
         return self.default_setting
+
+    def get_status(self) -> Dict[str, Any]:
+        """
+        return gateway status
+        :return:
+        """
+        return self.status
 
 
 class LocalOrderManager:
