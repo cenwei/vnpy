@@ -307,7 +307,7 @@ class RpcClient:
 
         while self.__active:
             if not self.__socket_sub.poll(pull_tolerance):
-                self._on_unexpected_disconnected()
+                # self._on_unexpected_disconnected()
                 continue
 
             # Receive data from subscribe socket

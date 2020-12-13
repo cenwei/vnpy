@@ -139,19 +139,27 @@ class CtaEngine(BaseEngine):
         register the funcs to main_engine
         :return:
         """
+        self.main_engine.get_strategy_status = self.get_strategy_status
+        self.main_engine.get_strategy_pos = self.get_strategy_pos
         self.main_engine.compare_pos = self.compare_pos
+        self.main_engine.add_strategy = self.add_strategy
+        self.main_engine.init_strategy = self.init_strategy
+        self.main_engine.start_strategy = self.start_strategy
+        self.main_engine.stop_strategy = self.stop_strategy
+        self.main_engine.remove_strategy = self.remove_strategy
+        self.main_engine.reload_strategy = self.reload_strategy
 
         # 注册到远程服务调用
         if self.main_engine.rpc_service:
-            self.main_engine.rpc_service.register(self.get_strategy_status)
-            self.main_engine.rpc_service.register(self.get_strategy_pos)
-            self.main_engine.rpc_service.register(self.compare_pos)
-            self.main_engine.rpc_service.register(self.add_strategy)
-            self.main_engine.rpc_service.register(self.init_strategy)
-            self.main_engine.rpc_service.register(self.start_strategy)
-            self.main_engine.rpc_service.register(self.stop_strategy)
-            self.main_engine.rpc_service.register(self.remove_strategy)
-            self.main_engine.rpc_service.register(self.reload_strategy)
+            self.main_engine.rpc_service.register(self.main_engine.get_strategy_status)
+            self.main_engine.rpc_service.register(self.main_engine.get_strategy_pos)
+            self.main_engine.rpc_service.register(self.main_engine.compare_pos)
+            self.main_engine.rpc_service.register(self.main_engine.add_strategy)
+            self.main_engine.rpc_service.register(self.main_engine.init_strategy)
+            self.main_engine.rpc_service.register(self.main_engine.start_strategy)
+            self.main_engine.rpc_service.register(self.main_engine.stop_strategy)
+            self.main_engine.rpc_service.register(self.main_engine.remove_strategy)
+            self.main_engine.rpc_service.register(self.main_engine.reload_strategy)
             # self.main_engine.rpc_service.register(self.main_engine.save_strategy_data)
             # self.main_engine.rpc_service.register(self.main_engine.save_strategy_snapshot)
             # self.main_engine.rpc_service.register(self.main_engine.clean_strategy_cache)
