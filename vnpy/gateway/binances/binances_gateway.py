@@ -452,7 +452,8 @@ class BinancesRestApi(RestClient):
             "price": float(req.price),
             "quantity": float(req.volume),
             "newClientOrderId": orderid,
-            "positionSide": positionSide
+            "positionSide": positionSide,
+            "recvWindow": 20000
         }
 
         if order_type == "STOP":
@@ -501,7 +502,8 @@ class BinancesRestApi(RestClient):
 
         params = {
             "symbol": req.symbol,
-            "origClientOrderId": req.orderid
+            "origClientOrderId": req.orderid,
+            "recvWindow": 20000
         }
 
         if self.usdt_base:
