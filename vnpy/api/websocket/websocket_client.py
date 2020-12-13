@@ -221,6 +221,7 @@ class WebsocketClient:
                     websocket.WebSocketConnectionClosedException,
                     websocket.WebSocketBadStatusException,
                     wb_exceptions.WebSocketAddressException,
+                    wb_exceptions.WebSocketTimeoutException,
                     socket.error
                 ):
                     self._disconnect()
