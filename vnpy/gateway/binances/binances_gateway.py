@@ -487,7 +487,7 @@ class BinancesRestApi(RestClient):
 
         if isinstance(resp, requests.Response):
             if resp.status_code // 100 != 2:
-                msg = f"委托下单失败，状态码：{resp.status_code}，信息：{resp.text}"
+                msg = f"委托下单失败，状态码：{resp.status_code}，信息：{resp.text}, {req.symbol}, {orderid}"
                 self.gateway.write_log(msg)
                 order.status = Status.REJECTED
                 self.gateway.on_order(order)
@@ -527,7 +527,7 @@ class BinancesRestApi(RestClient):
 
         if isinstance(resp, requests.Response):
             if resp.status_code // 100 != 2:
-                msg = f"取消委托失败，状态码：{resp.status_code}，信息：{resp.text}"
+                msg = f"取消委托失败，状态码：{resp.status_code}，信息：{resp.text}, {req.symbol}, {req.orderid}"
                 self.gateway.write_log(msg)
                 return False
             else:
