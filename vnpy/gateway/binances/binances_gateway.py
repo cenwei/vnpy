@@ -470,18 +470,26 @@ class BinancesRestApi(RestClient):
         else:
             path = "/dapi/v1/order"
 
-        self.add_request(
+        resp = self.request(
             method="POST",
             path=path,
-            callback=self.on_send_order,
             data=data,
-            params=params,
-            extra=order,
-            on_error=self.on_send_order_error,
-            on_failed=self.on_send_order_failed
+            params=params
         )
 
-        return order.vt_orderid
+        if isinstance(resp, requests.Response):
+            if resp.status_code // 100 != 2:
+                msg = f"委托下单失败，状态码：{resp.status_code}，信息：{resp.text}"
+                self.gateway.write_log(msg)
+                order.status = Status.REJECTED
+                self.gateway.on_order(order)
+                return ""
+            else:
+                return order.vt_orderid
+        else:
+            msg = f"网络连接失败，委托下单失败"
+            self.gateway.write_log(msg)
+            return self.send_order(req)
 
     def cancel_order(self, req: CancelRequest) -> Request:
         """
@@ -518,7 +526,7 @@ class BinancesRestApi(RestClient):
         else:
             msg = f"网络连接失败，取消委托失败"
             self.gateway.write_log(msg)
-            return False
+            return self.cancel_order(req)
 
     def on_default_error(
         self, exception_type: type, exception_value: Exception, tb, request: Request
@@ -690,35 +698,6 @@ class BinancesRestApi(RestClient):
 
         self.gateway.write_log("合约信息查询成功")
 
-    def on_send_order(self, data: dict, request: Request) -> None:
-        """"""
-        pass
-
-    def on_send_order_failed(self, status_code: str, request: Request) -> None:
-        """
-        Callback when sending order failed on server.
-        """
-        order = request.extra
-        order.status = Status.REJECTED
-        self.gateway.on_order(order)
-
-        msg = f"委托失败，状态码：{status_code}，信息：{request.response.text}"
-        self.gateway.write_log(msg)
-
-    def on_send_order_error(
-        self, exception_type: type, exception_value: Exception, tb, request: Request
-    ) -> None:
-        """
-        Callback when sending order caused exception.
-        """
-        order = request.extra
-        order.status = Status.REJECTED
-        self.gateway.on_order(order)
-
-        # Record exception if not ConnectionError
-        if not issubclass(exception_type, ConnectionError):
-            self.on_error(exception_type, exception_value, tb, request)
-
     def on_start_user_stream(self, data: dict, request: Request) -> None:
         """"""
         self.user_stream_key = data["listenKey"]
@@ -771,7 +750,7 @@ class BinancesRestApi(RestClient):
                 data={"security": Security.NONE},
                 params=params
             )
-            
+
             if isinstance(resp, requests.Response):
 
                 # Break if request failed with other status code
@@ -829,6 +808,8 @@ class BinancesRestApi(RestClient):
                     if start_time > int(datetime.timestamp(req.end)):
                         print("开始时间大于结束时间")
                         break
+            else:
+                pass
 
         return history
 
