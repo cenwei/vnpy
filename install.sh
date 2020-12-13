@@ -7,8 +7,12 @@ shift 2
 [[ -z $python ]] && python=python
 [[ -z $prefix ]] && prefix=/usr
 
-apt install build-essential libcurl4-gnutls-dev libxml2-dev libssl-dev
-apt install python3-pyqt5
+apt-get install -y m4
+apt-get install -y build-essential libcurl4-gnutls-dev libxml2-dev libssl-dev
+apt-get install -y autoconf automake libtool
+apt-get install -y python3-pyqt5
+apt-get install -y python3-pyqtgraph
+apt-get install -y python3-psycopg2
 
 $python -m pip install --upgrade pip setuptools wheel
 
