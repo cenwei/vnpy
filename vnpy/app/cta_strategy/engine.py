@@ -116,6 +116,8 @@ class CtaEngine(BaseEngine):
 
         self.offset_converter = OffsetConverter(self.main_engine)
 
+        self.positions = {}
+
     def init_engine(self):
         """
         """
@@ -287,6 +289,8 @@ class CtaEngine(BaseEngine):
     def process_position_event(self, event: Event):
         """"""
         position = event.data
+
+        self.positions.update({position.vt_positionid: position})
 
         self.offset_converter.update_position(position)
 
