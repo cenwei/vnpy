@@ -151,6 +151,13 @@ class MainEngine:
         """
         return list(self.gateways.keys())
 
+    def get_all_gateway_status(self) -> List[dict]:
+        """
+        Get all gateway status
+        :return:
+        """
+        return list([{k: v.get_status()} for k, v in self.gateways.items()])
+
     def get_all_apps(self) -> List[BaseApp]:
         """
         Get all app objects.
