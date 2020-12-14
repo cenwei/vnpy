@@ -490,7 +490,7 @@ class CtaEngine(BaseEngine):
         """
         stop_order = self.stop_orders.get(stop_orderid, None)
         if not stop_order:
-            return
+            return False
         strategy = self.strategies[stop_order.strategy_name]
 
         # Remove from relation map.
@@ -505,6 +505,7 @@ class CtaEngine(BaseEngine):
 
         self.call_strategy_func(strategy, strategy.on_stop_order, stop_order)
         self.put_stop_order_event(stop_order)
+        return True
 
     def send_order(
         self,
@@ -540,9 +541,9 @@ class CtaEngine(BaseEngine):
         """
         """
         if vt_orderid.startswith(STOPORDER_PREFIX):
-            self.cancel_local_stop_order(strategy, vt_orderid)
+            return self.cancel_local_stop_order(strategy, vt_orderid)
         else:
-            self.cancel_server_order(strategy, vt_orderid)
+            return self.cancel_server_order(strategy, vt_orderid)
 
     def cancel_all(self, strategy: CtaTemplate):
         """

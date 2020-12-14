@@ -747,6 +747,7 @@ class CryptoFutureTemplate(CtaTemplate):
                     grid.open_status = False
                     grid.close_status = True
                     grid.close_fee = order.fee
+                    grid.netpnl += order.netpnl
                     
                     grid.close_price_list.append(order.price)
                     grid.close_volume_list.append(order.volume)
@@ -776,6 +777,10 @@ class CryptoFutureTemplate(CtaTemplate):
                 grid.traded_volume += order.volume
                 grid.traded_volume = round(grid.traded_volume, 7)
                 grid.close_fee = order.fee
+                grid.netpnl += order.netpnl
+
+                grid.close_price_list.append(order.price)
+                grid.close_volume_list.append(order.volume)
                 self.save_trade(order, grid)
 
                 self.write_log(f'{grid.direction.value}单部分{order.offset}仓，'
