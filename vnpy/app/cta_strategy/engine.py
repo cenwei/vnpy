@@ -354,6 +354,30 @@ class CtaEngine(BaseEngine):
                     )
                     self.put_stop_order_event(stop_order)
 
+    def send_limit_order(
+        self,
+        strategy: CtaTemplate,
+        contract: ContractData,
+        direction: Direction,
+        offset: Offset,
+        price: float,
+        volume: float,
+        lock: bool
+    ):
+        """
+        Send a limit order to server.
+        """
+        return self.send_server_order(
+            strategy,
+            contract,
+            direction,
+            offset,
+            price,
+            volume,
+            OrderType.LIMIT,
+            lock
+        )
+
     def send_server_order(
         self,
         strategy: CtaTemplate,
