@@ -1224,7 +1224,10 @@ class CtaEngine(BaseEngine):
 
         # 如果日志数据异常，错误和告警，输出至sys.stderr
         if level in [logging.CRITICAL, logging.ERROR, logging.WARNING]:
-            print(f"{strategy.strategy_name}: {msg}" if strategy.strategy_name else msg, file=sys.stderr)
+            if strategy:
+                print(f"{strategy.strategy_name}: {msg}" if strategy.strategy_name else msg, file=sys.stderr)
+            else:
+                print(f"{msg}", file=sys.stderr)
 
         msg = msg.replace("\033[1;32;31m", "")
         msg = msg.replace("\033[0m", "")
