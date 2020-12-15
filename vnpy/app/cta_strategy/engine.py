@@ -119,6 +119,8 @@ class CtaEngine(BaseEngine):
 
         self.positions = {}
 
+        self.last_minute = None
+
     def init_engine(self):
         """
         """
