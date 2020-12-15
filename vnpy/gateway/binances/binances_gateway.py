@@ -445,9 +445,7 @@ class BinancesRestApi(RestClient):
     def _new_order_id(self) -> int:
         """"""
         with self.order_count_lock:
-            self.order_count_lock.acquire()
             self.order_count += 1
-            self.order_count_lock.release()
             return self.order_count
 
     def send_order(self, req: OrderRequest) -> str:
