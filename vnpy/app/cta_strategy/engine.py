@@ -8,6 +8,7 @@ import sys
 import traceback
 from collections import OrderedDict, defaultdict
 from pathlib import Path
+from types import FunctionType
 from typing import Any, Callable
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor
@@ -1074,7 +1075,7 @@ class CtaEngine(BaseEngine):
 
         if strategy.inited:
             # 如果策略具有getPositions得方法，则调用该方法
-            if hasattr(strategy, 'get_positions'):
+            if hasattr(strategy, 'get_positions') and issubclass(strategy.get_positions, FunctionType):
                 pos_list = strategy.get_positions()
                 for pos in pos_list:
                     vt_symbol = pos.get('vt_symbol', None)
@@ -1104,7 +1105,7 @@ class CtaEngine(BaseEngine):
                     pos_list.append(short_pos)
 
             # 获取模板缺省pos属性
-            elif hasattr(strategy, 'pos') and isinstance(strategy.pos, int):
+            elif hasattr(strategy, 'pos') and isinstance(strategy.pos, float):
                 symbol, exchange = extract_vt_symbol(strategy.vt_symbol)
                 if strategy.pos > 0:
                     long_pos = {}
