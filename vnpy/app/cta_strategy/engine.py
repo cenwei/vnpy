@@ -1075,7 +1075,7 @@ class CtaEngine(BaseEngine):
 
         if strategy.inited:
             # 如果策略具有getPositions得方法，则调用该方法
-            if hasattr(strategy, 'get_positions', None) and callable(strategy.get_positions):
+            if hasattr(strategy, 'get_positions') and callable(strategy.get_positions):
                 pos_list = strategy.get_positions()
                 for pos in pos_list:
                     vt_symbol = pos.get('vt_symbol', None)
