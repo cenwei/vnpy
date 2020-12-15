@@ -177,6 +177,12 @@ class BacktestingEngine:
         """查询合约的size"""
         return self.size
 
+    def get_volume_tick(self, vt_symbol: str):
+        """
+        Return contract min volume data.
+        """
+        return self.size
+
     def set_parameters(
         self,
         vt_symbol: str,
@@ -1093,27 +1099,29 @@ class BacktestingEngine:
         Cancel order by vt_orderid.
         """
         if vt_orderid.startswith(STOPORDER_PREFIX):
-            self.cancel_stop_order(strategy, vt_orderid)
+            return self.cancel_stop_order(strategy, vt_orderid)
         else:
-            self.cancel_limit_order(strategy, vt_orderid)
+            return self.cancel_limit_order(strategy, vt_orderid)
 
     def cancel_stop_order(self, strategy: CtaTemplate, vt_orderid: str):
         """"""
         if vt_orderid not in self.active_stop_orders:
-            return
+            return False
         stop_order = self.active_stop_orders.pop(vt_orderid)
 
         stop_order.status = StopOrderStatus.CANCELLED
         self.strategy.on_stop_order(stop_order)
+        return True
 
     def cancel_limit_order(self, strategy: CtaTemplate, vt_orderid: str):
         """"""
         if vt_orderid not in self.active_limit_orders:
-            return
+            return False
         order = self.active_limit_orders.pop(vt_orderid)
 
         order.status = Status.CANCELLED
         self.strategy.on_order(order)
+        return True
 
     def cancel_all(self, strategy: CtaTemplate):
         """

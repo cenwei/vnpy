@@ -240,11 +240,14 @@ class TradeData(BaseData):
     orderid: str
     tradeid: str
     direction: Direction = None
+    sys_orderid: str = ""
+    accountid: str = ""
 
     offset: Offset = Offset.NONE
     price: float = 0
     volume: float = 0
     datetime: datetime = None
+    time: str = ""
 
     def __post_init__(self):
         """"""

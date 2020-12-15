@@ -143,6 +143,7 @@ class BinancesGateway(BaseGateway):
     def __init__(self, event_engine: EventEngine):
         """Constructor"""
         super().__init__(event_engine, "BINANCES")
+        self.count = 0
 
         self.trade_ws_api = BinancesTradeWebsocketApi(self)
         self.market_ws_api = BinancesDataWebsocketApi(self)
@@ -206,6 +207,15 @@ class BinancesGateway(BaseGateway):
                 and self.status.get('mdws_con', False):
             self.status.update({'con': True})
 
+        self.count += 1
+        if self.count < 2:
+            return
+        self.count = 0
+        if len(self.query_functions) > 0:
+            func = self.query_functions.pop(0)
+            func()
+            self.query_functions.append(func)
+
 
 class BinancesRestApi(RestClient):
     """
@@ -235,6 +245,8 @@ class BinancesRestApi(RestClient):
         self.order_count_lock: Lock = Lock()
         self.connect_time: int = 0
         self.usdt_base: bool = False
+        self.cache_position_symbols = {}
+        self.accountid = ""
 
     def sign(self, request: Request) -> Request:
         """
@@ -331,7 +343,11 @@ class BinancesRestApi(RestClient):
         self.query_position()
         self.query_order()
         self.query_contract()
+        self.query_trade()
         self.start_user_stream()
+
+        # 添加到定时查询队列中
+        self.gateway.query_functions = [self.query_account, self.query_position]
 
     def query_time(self) -> Request:
         """"""
@@ -499,6 +515,22 @@ class BinancesRestApi(RestClient):
             self.gateway.write_log(msg)
             return self.send_order(req)
 
+    def query_trade(self, vt_symbol: str = '') -> Request:
+        """"""
+        data = {"security": Security.SIGNED}
+        if vt_symbol:
+            if '.' in vt_symbol:
+                vt_symbol = vt_symbol.split('.')[0]
+            data.update({'symbol': vt_symbol})
+
+        self.add_request(
+            method="GET",
+            path="/fapi/v1/userTrades",
+            callback=self.on_query_trade,
+            data=data,
+            on_error=self.on_default_error,
+        )
+
     def cancel_order(self, req: CancelRequest) -> Request:
         """
         取消委托
@@ -602,6 +634,8 @@ class BinancesRestApi(RestClient):
 
     def on_query_account(self, data: dict, request: Request) -> None:
         """"""
+        if not self.accountid:
+            self.accountid = f"{self.gateway_name}_USDT"
         for asset in data["assets"]:
             account = AccountData(
                 accountid=asset["asset"],
@@ -621,7 +655,7 @@ class BinancesRestApi(RestClient):
                 #     self.gateway.write_log(json.dumps(position, indent=2))
                 self.contracts.update({symbol: position})
 
-        self.gateway.write_log("账户资金查询成功")
+        # self.gateway.write_log("账户资金查询成功")
 
     def on_query_position(self, data: dict, request: Request) -> None:
         """"""
@@ -636,10 +670,17 @@ class BinancesRestApi(RestClient):
                 gateway_name=self.gateway_name,
             )
 
-            if position.volume:
-                self.gateway.on_position(position)
+            # 如果持仓数量为0，且不在之前缓存过的合约信息中，不做on_position
+            if position.volume == 0:
+                if position.symbol not in self.cache_position_symbols:
+                    continue
+            else:
+                if position.symbol not in self.cache_position_symbols:
+                    self.cache_position_symbols.update({position.symbol: position.volume})
 
-        self.gateway.write_log("持仓信息查询成功")
+            self.gateway.on_position(position)
+
+        # self.gateway.write_log("持仓信息查询成功")
 
     def on_query_order(self, data: dict, request: Request) -> None:
         """"""
@@ -663,6 +704,30 @@ class BinancesRestApi(RestClient):
                 gateway_name=self.gateway_name,
             )
             self.gateway.on_order(order)
+
+        self.gateway.write_log("委托信息查询成功")
+
+    def on_query_trade(self, data: dict, request: Request) -> None:
+        """"""
+        for d in data:
+            dt = datetime.fromtimestamp(d["time"] / 1000)
+            time = dt.strftime("%Y-%m-%d %H:%M:%S")
+
+            trade = TradeData(
+                accountid=self.accountid,
+                symbol=d['symbol'],
+                exchange=Exchange.BINANCE,
+                orderid=d['orderId'],
+                tradeid=d["id"],
+                direction=Direction.SHORT if d['side'] == 'SELL' else Direction.LONG,
+                offset=Offset.CLOSE if d['buyer'] else Offset.OPEN,
+                price=float(d["price"]),
+                volume=float(d['qty']),
+                time=time,
+                datetime=dt,
+                gateway_name=self.gateway_name,
+            )
+            self.gateway.on_trade(trade)
 
         self.gateway.write_log("委托信息查询成功")
 
@@ -832,6 +897,7 @@ class BinancesTradeWebsocketApi(WebsocketClient):
 
         self.gateway: BinancesGateway = gateway
         self.gateway_name: str = gateway.gateway_name
+        self.accountid = ""
 
     def connect(self, url: str, proxy_host: str, proxy_port: int) -> None:
         """"""
@@ -853,7 +919,11 @@ class BinancesTradeWebsocketApi(WebsocketClient):
             self.on_order(packet)
 
     def on_account(self, packet: dict) -> None:
-        """"""
+        """
+        websocket返回得Balance/Position信息更新
+        """
+        if not self.accountid:
+            self.accountid = f"{self.gateway_name}_USDT"
         for acc_data in packet["a"]["B"]:
             account = AccountData(
                 accountid=acc_data["a"],
