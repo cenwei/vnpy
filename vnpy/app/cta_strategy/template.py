@@ -904,6 +904,33 @@ class CryptoFutureTemplate(CtaTemplate):
         self.active_orders.update({order.vt_orderid: old_order})
         pass
 
+    def get_positions(self):
+        """
+        获取策略当前持仓
+        :return: [{'vt_symbol':symbol,'direction':direction,'volume':volume]
+        """
+        if not self.position:
+            return []
+        pos_list = []
+
+        if self.position.long_pos > 0:
+            for g in self.gt.get_opened_grids(direction=Direction.LONG):
+                pos_list.append({'vt_symbol': self.vt_symbol,
+                                 'direction': 'long',
+                                 'volume': g.volume - g.traded_volume,
+                                 'price': g.open_price})
+
+        if abs(self.position.short_pos) > 0:
+            for g in self.gt.get_opened_grids(direction=Direction.SHORT):
+                pos_list.append({'vt_symbol': self.vt_symbol,
+                                 'direction': 'short',
+                                 'volume': abs(g.volume - g.traded_volume),
+                                 'price': g.open_price})
+
+        if self.cur_datetime and (datetime.now() - self.cur_datetime).total_seconds() < 10:
+            self.write_log(u'{}当前持仓:{}'.format(self.strategy_name, pos_list))
+        return pos_list
+
     def grid_short(self, grid: CtaGrid, short_price, lock: bool = False, volume :float = None, order_type: OrderType = OrderType.LIMIT):
         """
         事务开空仓
