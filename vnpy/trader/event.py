@@ -11,3 +11,6 @@ EVENT_POSITION = "ePosition."
 EVENT_ACCOUNT = "eAccount."
 EVENT_CONTRACT = "eContract."
 EVENT_LOG = "eLog"
+
+# 扩展
+EVENT_STRATEGY_POS = "eStrategyPos."

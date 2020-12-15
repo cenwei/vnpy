@@ -12,6 +12,7 @@ from typing import Any, Callable
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor
 from copy import copy
+from vnpy.event.engine import EVENT_TIMER
 from vnpy.trader.setting import SETTINGS
 from tzlocal import get_localzone
 from functools import lru_cache
@@ -28,7 +29,7 @@ from vnpy.trader.object import (
     ContractData
 )
 from vnpy.trader.event import (
-    EVENT_TICK,
+    EVENT_STRATEGY_POS, EVENT_TICK,
     EVENT_ORDER,
     EVENT_TRADE,
     EVENT_POSITION
@@ -138,7 +139,10 @@ class CtaEngine(BaseEngine):
         save_json(self.engine_filename, self.engine_config)
 
     def register_event(self):
-        """"""
+        """
+        注册事件
+        """
+        self.event_engine.register(EVENT_TIMER, self.process_timer_event)
         self.event_engine.register(EVENT_TICK, self.process_tick_event)
         self.event_engine.register(EVENT_ORDER, self.process_order_event)
         self.event_engine.register(EVENT_TRADE, self.process_trade_event)
@@ -173,6 +177,31 @@ class CtaEngine(BaseEngine):
             # self.main_engine.rpc_service.register(self.main_engine.save_strategy_data)
             # self.main_engine.rpc_service.register(self.main_engine.save_strategy_snapshot)
             # self.main_engine.rpc_service.register(self.main_engine.clean_strategy_cache)
+
+    def process_timer_event(self, event: Event):
+        """ 处理定时器事件"""
+        all_trading = True
+        # 触发每个策略的定时接口
+        for strategy in list(self.strategies.values()):
+            strategy.on_timer()
+            if not strategy.trading:
+                all_trading = False
+        
+        dt = datetime.now()
+
+        if self.last_minute != dt.minute:
+            self.last_minute = dt.minute
+
+            if all_trading:
+                # 主动获取所有策略得持仓信息
+                all_strategy_pos = self.get_all_strategy_pos()
+
+                if dt.minute % 5 == 0 and self.engine_config.get('compare_pos',True):
+                    # 比对仓位，使用上述获取得持仓信息，不用重复获取
+                    self.compare_pos(strategy_pos_list=copy(all_strategy_pos))
+
+                # 推送到事件
+                self.put_all_strategy_pos_event(all_strategy_pos)
 
     def init_rqdata(self):
         """
@@ -503,7 +532,7 @@ class CtaEngine(BaseEngine):
         order = self.main_engine.get_order(vt_orderid)
         if not order:
             self.write_log(f"撤单失败，找不到委托{vt_orderid}", strategy)
-            return
+            return False
 
         req = order.create_cancel_request()
         return self.main_engine.cancel_order(req, order.gateway_name)
@@ -568,6 +597,18 @@ class CtaEngine(BaseEngine):
             return self.cancel_local_stop_order(strategy, vt_orderid)
         else:
             return self.cancel_server_order(strategy, vt_orderid)
+
+    def query_order(self, strategy: CtaTemplate, vt_orderid: str):
+        """
+        Query existing order by vt_orderid.
+        """
+        order = self.main_engine.get_order(vt_orderid)
+        if not order:
+            self.write_log(f"查询委托失败，找不到委托{vt_orderid}", strategy)
+            return False
+
+        req = order.create_cancel_request()
+        return self.main_engine.query_order(req, order.gateway_name)
 
     def cancel_all(self, strategy: CtaTemplate):
         """
@@ -1202,6 +1243,14 @@ class CtaEngine(BaseEngine):
         data = strategy.get_data()
         event = Event(EVENT_CTA_STRATEGY, data)
         self.event_engine.put(event)
+
+    def put_all_strategy_pos_event(self, strategy_pos_list: list = []):
+        """
+        推送所有策略得持仓事件
+        """
+        for strategy_pos in strategy_pos_list:
+            event = Event(EVENT_STRATEGY_POS, copy(strategy_pos))
+            self.event_engine.put(event)
 
     def write_log(self, msg: str, strategy: CtaTemplate = None, level: int = logging.INFO):
         """

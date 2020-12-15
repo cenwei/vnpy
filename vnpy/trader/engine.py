@@ -204,6 +204,14 @@ class MainEngine:
         if gateway:
             return gateway.cancel_order(req)
 
+    def query_order(self, req: CancelRequest, gateway_name: str) -> None:
+        """
+        查询委托是否成功
+        """
+        gateway = self.get_gateway(gateway_name)
+        if gateway:
+            return gateway.query_order(req)
+
     def send_orders(self, reqs: Sequence[OrderRequest], gateway_name: str) -> List[str]:
         """
         """

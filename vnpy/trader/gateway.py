@@ -7,7 +7,7 @@ import logging
 from typing import Any, Sequence, Dict, List, Optional, Callable
 from copy import copy
 from vnpy.trader.util_logger import setup_logger
-from vnpy.trader.utility import get_folder_path
+from vnpy.trader.utility import get_folder_path, virtual
 
 from vnpy.event import Event, EventEngine
 from .event import (
@@ -224,6 +224,15 @@ class BaseGateway(ABC):
     def cancel_order(self, req: CancelRequest) -> None:
         """
         Cancel an existing order.
+        implementation should finish the tasks blow:
+        * send request to server
+        """
+        pass
+
+    @virtual
+    def query_order(self, req: CancelRequest) -> bool:
+        """
+        query an existing order.
         implementation should finish the tasks blow:
         * send request to server
         """

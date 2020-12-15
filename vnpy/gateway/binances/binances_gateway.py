@@ -181,6 +181,10 @@ class BinancesGateway(BaseGateway):
         """"""
         return self.rest_api.cancel_order(req)
 
+    def query_order(self, req: CancelRequest) -> Request:
+        """"""
+        return self.rest_api.query_order_exits(req)
+
     def query_account(self) -> None:
         """"""
         pass
@@ -531,6 +535,44 @@ class BinancesRestApi(RestClient):
             on_error=self.on_default_error,
         )
 
+    def query_order_exits(self, req: CancelRequest):
+        """
+        查询委托是否成功
+        """
+        data = {
+            "security": Security.SIGNED
+        }
+
+        params = {
+            "symbol": req.symbol,
+            "origClientOrderId": req.orderid,
+            "recvWindow": 20000
+        }
+
+        if self.usdt_base:
+            path = "/fapi/v1/openOrder"
+        else:
+            path = "/dapi/v1/openOrder"
+
+        resp = self.request(
+            method="DELETE",
+            path=path,
+            params=params,
+            data=data,
+        )
+
+        if isinstance(resp, requests.Response):
+            if resp.status_code // 100 != 2:
+                msg = f"委托查询失败，状态码：{resp.status_code}，信息：{resp.text}, {req.symbol}, {req.orderid}"
+                self.gateway.write_log(msg)
+                return False
+            else:
+                return True
+        else:
+            msg = f"网络连接失败，取消委托失败"
+            self.gateway.write_log(msg)
+            return self.query_order_exits(req)
+
     def cancel_order(self, req: CancelRequest) -> Request:
         """
         取消委托
@@ -664,21 +706,14 @@ class BinancesRestApi(RestClient):
                 symbol=d["symbol"],
                 exchange=Exchange.BINANCE,
                 direction=Direction.NET,
-                volume=int(float(d["positionAmt"])),
+                volume=float(d["positionAmt"]),
                 price=float(d["entryPrice"]),
                 pnl=float(d["unRealizedProfit"]),
                 gateway_name=self.gateway_name,
             )
 
-            # 如果持仓数量为0，且不在之前缓存过的合约信息中，不做on_position
-            if position.volume == 0:
-                if position.symbol not in self.cache_position_symbols:
-                    continue
-            else:
-                if position.symbol not in self.cache_position_symbols:
-                    self.cache_position_symbols.update({position.symbol: position.volume})
-
-            self.gateway.on_position(position)
+            if position.volume != 0:
+                self.gateway.on_position(position)
 
         # self.gateway.write_log("持仓信息查询成功")
 

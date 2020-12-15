@@ -114,6 +114,13 @@ class CtaTemplate(ABC):
         pass
 
     @virtual
+    def on_timer(self):
+        """
+        定时器
+        """
+        pass
+
+    @virtual
     def on_start(self):
         """
         Callback when strategy is started.
@@ -249,6 +256,13 @@ class CtaTemplate(ABC):
         """
         if self.trading:
             return self.cta_engine.cancel_order(self, vt_orderid)
+
+    def query_order(self, vt_orderid: str):
+        """
+        Query an existing order.
+        """
+        if self.trading:
+            return self.cta_engine.query_order(self, vt_orderid)
 
     def cancel_all(self):
         """
