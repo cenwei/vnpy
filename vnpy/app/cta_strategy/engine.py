@@ -191,19 +191,19 @@ class CtaEngine(BaseEngine):
         
         dt = datetime.now()
 
-        if self.last_minute != dt.minute:
-            self.last_minute = dt.minute
+        # if self.last_minute != dt.minute:
+        #     self.last_minute = dt.minute
 
-            if all_trading:
-                # 主动获取所有策略得持仓信息
-                all_strategy_pos = self.get_all_strategy_pos()
+        #     if all_trading:
+        #         # 主动获取所有策略得持仓信息
+        #         all_strategy_pos = self.get_all_strategy_pos()
 
-                if dt.minute % 5 == 0 and self.engine_config.get('compare_pos',True):
-                    # 比对仓位，使用上述获取得持仓信息，不用重复获取
-                    self.compare_pos(strategy_pos_list=copy(all_strategy_pos))
+        #         if dt.minute % 5 == 0 and self.engine_config.get('compare_pos',True):
+        #             # 比对仓位，使用上述获取得持仓信息，不用重复获取
+        #             self.compare_pos(strategy_pos_list=copy(all_strategy_pos))
 
-                # 推送到事件
-                self.put_all_strategy_pos_event(all_strategy_pos)
+        #         # 推送到事件
+        #         self.put_all_strategy_pos_event(all_strategy_pos)
 
     def init_rqdata(self):
         """
