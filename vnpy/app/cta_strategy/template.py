@@ -1085,23 +1085,27 @@ class CryptoFutureTemplate(CtaTemplate):
         my_sheet.cell(row, 7, close_price)
 
         real_open_price = 0
+        real_open_count = 0
         real_open_price_num = len(grid.open_price_list)
         for i in range(real_open_price_num):
             temp_open_price = grid.open_price_list[i]
             temp_open_volume = grid.open_volume_list[i]
             real_open_price += temp_open_price * temp_open_volume
-        real_open_price = real_open_price / grid.volume
+            real_open_count += temp_open_volume
+        real_open_price = real_open_price / real_open_count
         if real_open_price == 0:
             # 防止程序过渡时价格为空
             real_open_price = grid.open_price
 
         real_close_price = 0
         real_close_num = len(grid.close_price_list)
+        real_close_count = 0
         for i in range(real_close_num):
             temp_close_price = grid.close_price_list[i]
             temp_close_volume = grid.close_volume_list[i]
             real_close_price += temp_close_price * temp_close_volume
-        real_close_price = real_close_price / grid.volume
+            real_close_count += temp_close_volume
+        real_close_price = real_close_price / real_close_count
         my_sheet.cell(row, 8, real_open_price)
         my_sheet.cell(row, 9 , real_close_price)
 
